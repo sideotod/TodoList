@@ -1,0 +1,18 @@
+{
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "src/features/items/ItemEditor.module.css"
+        ],
+        "createdAt": "2026-10-09T15:20:06.581Z",
+        "reason": "Agent: current line 18 is box-shadow; this file has no width, height, padding, or margin transition."
+      }
+    ]
+  }
+}

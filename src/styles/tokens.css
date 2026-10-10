@@ -1,0 +1,223 @@
+:root {
+  color-scheme: light;
+  --color-primary: #000000;
+  --color-brand-secondary: rgba(0, 0, 0, 0.68);
+  --color-accent: #2C698D;
+  --color-accent-hover: #235677;
+  --color-accent-soft: color-mix(in srgb, var(--color-accent) 12%, #ffffff);
+  --color-accent-soft-strong: color-mix(in srgb, var(--color-accent) 26%, #ffffff);
+  --color-background: #ffffff;
+  --color-surface: #ffffff;
+  --color-text: #000000;
+  --color-foreground: var(--color-text);
+  --color-secondary: rgba(0, 0, 0, 0.68);
+  --color-muted: rgba(0, 0, 0, 0.56);
+  --color-border: rgba(0, 0, 0, 0.13);
+  --color-border-strong: rgba(0, 0, 0, 0.34);
+  --color-control-outline: rgba(0, 0, 0, 0.24);
+  --color-hover: rgba(0, 0, 0, 0.035);
+  --color-primary-hover: #1a1a1a;
+  --color-focus: var(--color-accent);
+  --color-selected-background: var(--color-accent-soft);
+  --color-selected-text: var(--color-accent);
+  --color-disabled-background: rgba(0, 0, 0, 0.045);
+  --color-disabled-text: rgba(0, 0, 0, 0.45);
+  --color-control-background: var(--color-surface);
+  --color-progress-track: rgba(0, 0, 0, 0.12);
+  --color-saturday: #2C698D;
+  --color-holiday: #E4052C;
+  --color-success: var(--color-accent);
+  --color-success-soft: var(--color-accent-soft);
+  --color-warning: #9D6700;
+  --color-warning-soft: #FFF3D6;
+  --color-error: #E4052C;
+  --color-error-soft: #FDE8EC;
+  --color-error-border: #F4A9B7;
+  --color-info: var(--color-accent);
+  --color-info-soft: var(--color-accent-soft);
+  --color-phase-before: #A6ADB3;
+  --color-phase-start-soon: #9D6700;
+  --color-phase-start-soon-soft: #FFF3D6;
+  --color-phase-active: var(--color-accent);
+  --color-phase-end-soon: #E4052C;
+  --color-phase-end-soon-soft: #FDE8EC;
+  --theme-item-1: #E3F6F5;
+  --theme-item-1-strong: color-mix(in srgb, #E3F6F5 55%, #17191B);
+  --theme-item-2: #BAE8E8;
+  --theme-item-2-strong: color-mix(in srgb, #BAE8E8 55%, #17191B);
+  --theme-item-3: #2C698D;
+  --theme-item-3-strong: color-mix(in srgb, #2C698D 88%, #17191B);
+  --theme-item-4: #272643;
+  --theme-item-4-strong: color-mix(in srgb, #272643 88%, #17191B);
+  --color-overlay-soft: rgba(0, 0, 0, 0.12);
+  --color-overlay: rgba(0, 0, 0, 0.2);
+  --color-overlay-strong: rgba(0, 0, 0, 0.32);
+  --color-shadow: #000000;
+  --font-sans: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif;
+  --font-numeric-style: tabular-nums;
+  --font-size-8: 8px;
+  --font-size-9: 9px;
+  --font-size-10: 10px;
+  --font-size-11: 11px;
+  --font-size-12: 12px;
+  --font-size-13: 13px;
+  --font-size-14: 14px;
+  --font-size-15: 15px;
+  --font-size-16: 16px;
+  --font-size-17: 17px;
+  --font-size-18: 18px;
+  --font-size-19: 19px;
+  --font-size-20: 20px;
+  --font-size-21: 21px;
+  --font-size-22: 22px;
+  --font-size-23: 23px;
+  --font-size-24: 24px;
+  --font-size-28: 28px;
+  --line-height-copy: 1.45;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --border-width: 1px;
+  --focus-ring-width: 2px;
+  --touch-target: 44px;
+  --radius-control: 8px;
+  --radius-control-large: 11px;
+  --radius-card-compact: 10px;
+  --radius-card: 12px;
+  --radius-card-large: 14px;
+  --radius-popover: 15px;
+  --radius-dialog: 18px;
+  --radius-pill: 999px;
+  --shadow-popover: 0 14px 38px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-dialog: 0 20px 60px var(--color-overlay);
+  --shadow-modal: 0 10px 26px var(--color-overlay-soft);
+  --shadow-navigation: 0 8px 28px rgba(0, 0, 0, 0.14);
+  --motion-fast: 140ms;
+  --motion-standard: 180ms;
+  --motion-expand: 240ms;
+  --ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --ease-panel: cubic-bezier(.32, .72, 0, 1);
+}
+
+[data-color-theme='arctic'] {
+  --color-accent: #2C698D;
+  --color-accent-hover: #235677;
+  --theme-item-1: #E3F6F5;
+  --theme-item-1-strong: color-mix(in srgb, #E3F6F5 55%, #17191B);
+  --theme-item-2: #BAE8E8;
+  --theme-item-2-strong: color-mix(in srgb, #BAE8E8 55%, #17191B);
+  --theme-item-3: #2C698D;
+  --theme-item-3-strong: color-mix(in srgb, #2C698D 88%, #17191B);
+  --theme-item-4: #272643;
+  --theme-item-4-strong: color-mix(in srgb, #272643 88%, #17191B);
+}
+[data-color-theme='sea-glass'] {
+  --color-accent: #5C6B73;
+  --color-accent-hover: #4A565C;
+  --theme-item-1: #E0FBFC;
+  --theme-item-1-strong: color-mix(in srgb, #E0FBFC 52%, #17191B);
+  --theme-item-2: #C2DFE3;
+  --theme-item-2-strong: color-mix(in srgb, #C2DFE3 52%, #17191B);
+  --theme-item-3: #9DB4C0;
+  --theme-item-3-strong: color-mix(in srgb, #9DB4C0 55%, #17191B);
+  --theme-item-4: #5C6B73;
+  --theme-item-4-strong: color-mix(in srgb, #5C6B73 88%, #17191B);
+}
+[data-color-theme='sage-studio'] {
+  --color-accent: #52796F;
+  --color-accent-hover: #426158;
+  --theme-item-1: #CAD2C5;
+  --theme-item-1-strong: color-mix(in srgb, #CAD2C5 55%, #17191B);
+  --theme-item-2: #84A98C;
+  --theme-item-2-strong: color-mix(in srgb, #84A98C 60%, #17191B);
+  --theme-item-3: #52796F;
+  --theme-item-3-strong: color-mix(in srgb, #52796F 88%, #17191B);
+  --theme-item-4: #354F52;
+  --theme-item-4-strong: color-mix(in srgb, #354F52 88%, #17191B);
+}
+[data-color-theme='mint-condition'] {
+  --color-accent: #457B9D;
+  --color-accent-hover: #37627D;
+  --theme-item-1: #F1FAEE;
+  --theme-item-1-strong: color-mix(in srgb, #F1FAEE 50%, #17191B);
+  --theme-item-2: #A8DADC;
+  --theme-item-2-strong: color-mix(in srgb, #A8DADC 58%, #17191B);
+  --theme-item-3: #457B9D;
+  --theme-item-3-strong: color-mix(in srgb, #457B9D 88%, #17191B);
+  --theme-item-4: #1D3557;
+  --theme-item-4-strong: color-mix(in srgb, #1D3557 88%, #17191B);
+}
+[data-color-theme='deep-sea'] {
+  --color-accent: #2C6975;
+  --color-accent-hover: #23545E;
+  --theme-item-1: #06202A;
+  --theme-item-1-strong: color-mix(in srgb, #06202A 88%, #17191B);
+  --theme-item-2: #1B3B4B;
+  --theme-item-2-strong: color-mix(in srgb, #1B3B4B 88%, #17191B);
+  --theme-item-3: #2C6975;
+  --theme-item-3-strong: color-mix(in srgb, #2C6975 88%, #17191B);
+  --theme-item-4: #68B2A0;
+  --theme-item-4-strong: color-mix(in srgb, #68B2A0 62%, #17191B);
+}
+[data-color-theme='matcha'] {
+  --color-accent: #588157;
+  --color-accent-hover: #466746;
+  --theme-item-1: #DAD7CD;
+  --theme-item-1-strong: color-mix(in srgb, #DAD7CD 55%, #17191B);
+  --theme-item-2: #A3B18A;
+  --theme-item-2-strong: color-mix(in srgb, #A3B18A 58%, #17191B);
+  --theme-item-3: #588157;
+  --theme-item-3-strong: color-mix(in srgb, #588157 88%, #17191B);
+  --theme-item-4: #3A5A40;
+  --theme-item-4-strong: color-mix(in srgb, #3A5A40 88%, #17191B);
+}
+[data-color-theme='ink-gold'] {
+  --color-accent: #373F51;
+  --color-accent-hover: #2C3341;
+  --theme-item-1: #1B1B1E;
+  --theme-item-1-strong: color-mix(in srgb, #1B1B1E 88%, #17191B);
+  --theme-item-2: #373F51;
+  --theme-item-2-strong: color-mix(in srgb, #373F51 88%, #17191B);
+  --theme-item-3: #A9927D;
+  --theme-item-3-strong: color-mix(in srgb, #A9927D 60%, #17191B);
+  --theme-item-4: #F2D398;
+  --theme-item-4-strong: color-mix(in srgb, #F2D398 50%, #17191B);
+}
+[data-color-theme='nordic'] {
+  --color-accent: #4C566A;
+  --color-accent-hover: #3D4555;
+  --theme-item-1: #2E3440;
+  --theme-item-1-strong: color-mix(in srgb, #2E3440 88%, #17191B);
+  --theme-item-2: #4C566A;
+  --theme-item-2-strong: color-mix(in srgb, #4C566A 88%, #17191B);
+  --theme-item-3: #D8DEE9;
+  --theme-item-3-strong: color-mix(in srgb, #D8DEE9 55%, #17191B);
+  --theme-item-4: #ECEFF4;
+  --theme-item-4-strong: color-mix(in srgb, #ECEFF4 50%, #17191B);
+}
+[data-color-theme='rose-quartz'] {
+  --color-accent: #8F5A73;
+  --color-accent-hover: #74485D;
+  --theme-item-1: #F7EDF0;
+  --theme-item-1-strong: color-mix(in srgb, #F7EDF0 50%, #17191B);
+  --theme-item-2: #E4B5C4;
+  --theme-item-2-strong: color-mix(in srgb, #E4B5C4 55%, #17191B);
+  --theme-item-3: #C98CA7;
+  --theme-item-3-strong: color-mix(in srgb, #C98CA7 62%, #17191B);
+  --theme-item-4: #8F5A73;
+  --theme-item-4-strong: color-mix(in srgb, #8F5A73 88%, #17191B);
+}
+[data-color-theme='terracotta-field'] {
+  --color-accent: #3D405B;
+  --color-accent-hover: #313348;
+  --theme-item-1: #E07A5F;
+  --theme-item-1-strong: color-mix(in srgb, #E07A5F 65%, #17191B);
+  --theme-item-2: #F2CC8F;
+  --theme-item-2-strong: color-mix(in srgb, #F2CC8F 53%, #17191B);
+  --theme-item-3: #81B29A;
+  --theme-item-3-strong: color-mix(in srgb, #81B29A 60%, #17191B);
+  --theme-item-4: #3D405B;
+  --theme-item-4-strong: color-mix(in srgb, #3D405B 88%, #17191B);
+}

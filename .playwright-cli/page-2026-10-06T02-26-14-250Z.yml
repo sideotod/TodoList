@@ -1,0 +1,173 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - status [ref=f1e3]: 로컬 테스트 · 변경 내용은 이 브라우저에 저장되며 기기 간 동기화되지 않음
+    - main [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - generic [ref=f1e6]:
+          - heading "2026년 10월" [level=1] [ref=f1e7]
+          - navigation "월 이동" [ref=f1e8]:
+            - button "이전 달" [ref=f1e9] [cursor=pointer]
+            - button "다음 달" [ref=f1e10] [cursor=pointer]
+        - generic [ref=f1e11]:
+          - button "기간 일정 추가 메뉴" [expanded] [ref=f1e12] [cursor=pointer]
+          - menu "기간 일정 추가" [ref=f1e217]:
+            - menuitem [active] [ref=f1e218] [cursor=pointer]:
+              - strong [ref=f1e219]: 선착순 신청 추가
+            - menuitem [ref=f1e220] [cursor=pointer]:
+              - strong [ref=f1e221]: 기간 내 할 일 추가
+        - region "임박한 일정" [ref=f1e13]:
+          - generic [ref=f1e14]:
+            - heading "임박한 일정" [level=2] [ref=f1e15]
+            - generic [ref=f1e16]: 기간 시작 · 마감 순
+          - generic [ref=f1e17]:
+            - generic [ref=f1e18]:
+              - article [ref=f1e19]:
+                - generic [ref=f1e20]:
+                  - button "수강신청" [ref=f1e21] [cursor=pointer]
+                  - strong [ref=f1e23]: 21:33
+                - progressbar "시작까지 남은 기간" [ref=f1e24]
+                - generic [ref=f1e26]:
+                  - generic [ref=f1e27]: 10.07 09:00
+                  - generic [ref=f1e28]: 10.09 17:00
+              - article [ref=f1e29]:
+                - generic [ref=f1e30]:
+                  - button "학회 논문 제출" [ref=f1e31] [cursor=pointer]
+                  - generic [ref=f1e32]: 미완료 2/3
+                - progressbar "기간 진행률" [ref=f1e34]
+                - generic [ref=f1e36]:
+                  - generic [ref=f1e37]: 10.02 09:00
+                  - generic [ref=f1e38]: 10.13 09:00
+              - article [ref=f1e39]:
+                - generic [ref=f1e40]:
+                  - button "장학금 신청" [ref=f1e41] [cursor=pointer]
+                  - generic [ref=f1e42]: 완료
+                - progressbar "기간 진행률" [ref=f1e44]
+                - generic [ref=f1e46]:
+                  - generic [ref=f1e47]: 09.25 09:00
+                  - generic [ref=f1e48]: 10.02 09:00
+            - button "전체 임박 일정 펼치기, 5개" [ref=f1e49] [cursor=pointer]
+        - generic [ref=f1e50]:
+          - region "월간 할 일" [ref=f1e51]:
+            - grid "2026년 10월 날짜" [ref=f1e52]:
+              - row [ref=f1e53]:
+                - columnheader "일" [ref=f1e54]
+                - columnheader "월" [ref=f1e55]
+                - columnheader "화" [ref=f1e56]
+                - columnheader "수" [ref=f1e57]
+                - columnheader "목" [ref=f1e58]
+                - columnheader "금" [ref=f1e59]
+                - columnheader "토" [ref=f1e60]
+              - row [ref=f1e61]:
+                - gridcell "9월 27일 (일)" [ref=f1e62] [cursor=pointer]:
+                  - generic [ref=f1e63]: "27"
+                - gridcell "9월 28일 (월)" [ref=f1e65] [cursor=pointer]:
+                  - generic [ref=f1e66]: "28"
+                - gridcell "9월 29일 (화)" [ref=f1e68] [cursor=pointer]:
+                  - generic [ref=f1e69]: "29"
+                - gridcell "9월 30일 (수)" [ref=f1e71] [cursor=pointer]:
+                  - generic [ref=f1e72]: "30"
+                - gridcell "10월 1일 (목)" [ref=f1e74] [cursor=pointer]:
+                  - generic [ref=f1e75]: "1"
+                - gridcell "10월 2일 (금)" [ref=f1e77] [cursor=pointer]:
+                  - generic [ref=f1e78]: "2"
+                - gridcell "10월 3일 (토)" [ref=f1e80] [cursor=pointer]:
+                  - generic [ref=f1e81]: "3"
+              - row [ref=f1e83]:
+                - gridcell "10월 4일 (일), 할 일 1개" [ref=f1e84] [cursor=pointer]:
+                  - generic [ref=f1e85]: "4"
+                - gridcell "10월 5일 (월), 할 일 1개" [ref=f1e88] [cursor=pointer]:
+                  - generic [ref=f1e89]: "5"
+                - gridcell "10월 6일 (화), 할 일 3개" [selected] [ref=f1e92] [cursor=pointer]:
+                  - generic [ref=f1e93]: "6"
+                - gridcell "10월 7일 (수)" [ref=f1e96] [cursor=pointer]:
+                  - generic [ref=f1e97]: "7"
+                - gridcell "10월 8일 (목)" [ref=f1e99] [cursor=pointer]:
+                  - generic [ref=f1e100]: "8"
+                - gridcell "10월 9일 (금)" [ref=f1e102] [cursor=pointer]:
+                  - generic [ref=f1e103]: "9"
+                - gridcell "10월 10일 (토), 할 일 1개" [ref=f1e105] [cursor=pointer]:
+                  - generic [ref=f1e106]: "10"
+              - row [ref=f1e109]:
+                - gridcell "10월 11일 (일)" [ref=f1e110] [cursor=pointer]:
+                  - generic [ref=f1e111]: "11"
+                - gridcell "10월 12일 (월), 할 일 1개" [ref=f1e113] [cursor=pointer]:
+                  - generic [ref=f1e114]: "12"
+                - gridcell "10월 13일 (화), 할 일 2개" [ref=f1e117] [cursor=pointer]:
+                  - generic [ref=f1e118]: "13"
+                - gridcell "10월 14일 (수)" [ref=f1e121] [cursor=pointer]:
+                  - generic [ref=f1e122]: "14"
+                - gridcell "10월 15일 (목)" [ref=f1e124] [cursor=pointer]:
+                  - generic [ref=f1e125]: "15"
+                - gridcell "10월 16일 (금)" [ref=f1e127] [cursor=pointer]:
+                  - generic [ref=f1e128]: "16"
+                - gridcell "10월 17일 (토), 할 일 1개" [ref=f1e130] [cursor=pointer]:
+                  - generic [ref=f1e131]: "17"
+              - row [ref=f1e134]:
+                - gridcell "10월 18일 (일)" [ref=f1e135] [cursor=pointer]:
+                  - generic [ref=f1e136]: "18"
+                - gridcell "10월 19일 (월), 할 일 1개" [ref=f1e138] [cursor=pointer]:
+                  - generic [ref=f1e139]: "19"
+                - gridcell "10월 20일 (화)" [ref=f1e142] [cursor=pointer]:
+                  - generic [ref=f1e143]: "20"
+                - gridcell "10월 21일 (수)" [ref=f1e145] [cursor=pointer]:
+                  - generic [ref=f1e146]: "21"
+                - gridcell "10월 22일 (목), 할 일 1개" [ref=f1e148] [cursor=pointer]:
+                  - generic [ref=f1e149]: "22"
+                - gridcell "10월 23일 (금)" [ref=f1e152] [cursor=pointer]:
+                  - generic [ref=f1e153]: "23"
+                - gridcell "10월 24일 (토), 할 일 1개" [ref=f1e155] [cursor=pointer]:
+                  - generic [ref=f1e156]: "24"
+              - row [ref=f1e159]:
+                - gridcell "10월 25일 (일), 할 일 1개" [ref=f1e160] [cursor=pointer]:
+                  - generic [ref=f1e161]: "25"
+                - gridcell "10월 26일 (월)" [ref=f1e164] [cursor=pointer]:
+                  - generic [ref=f1e165]: "26"
+                - gridcell "10월 27일 (화), 할 일 1개" [ref=f1e167] [cursor=pointer]:
+                  - generic [ref=f1e168]: "27"
+                - gridcell "10월 28일 (수)" [ref=f1e171] [cursor=pointer]:
+                  - generic [ref=f1e172]: "28"
+                - gridcell "10월 29일 (목), 할 일 1개" [ref=f1e174] [cursor=pointer]:
+                  - generic [ref=f1e175]: "29"
+                - gridcell "10월 30일 (금)" [ref=f1e178] [cursor=pointer]:
+                  - generic [ref=f1e179]: "30"
+                - gridcell "10월 31일 (토), 할 일 1개" [ref=f1e181] [cursor=pointer]:
+                  - generic [ref=f1e182]: "31"
+          - region "선택한 날짜의 할 일" [ref=f1e185]:
+            - generic [ref=f1e186]:
+              - heading "10월 6일 화요일" [level=2] [ref=f1e187]
+              - button "할 일 추가" [ref=f1e188] [cursor=pointer]
+            - generic [ref=f1e189]:
+              - region "할 일" [ref=f1e190]:
+                - heading "할 일 2" [level=3] [ref=f1e191]:
+                  - text: 할 일
+                  - generic [ref=f1e192]: "2"
+                - list [ref=f1e193]:
+                  - listitem "논문 초안 정리, 미완료. 위아래 화살표로 같은 목록 안에서 이동" [ref=f1e194]:
+                    - checkbox "논문 초안 정리, 미완료" [ref=f1e195] [cursor=pointer]
+                    - button "논문 초안 정리" [ref=f1e196] [cursor=pointer]
+                    - button "논문 초안 정리 순서 변경. 누른 채로 끌기" [ref=f1e197]
+                  - listitem "지도교수 면담 준비, 미완료. 위아래 화살표로 같은 목록 안에서 이동" [ref=f1e198]:
+                    - checkbox "지도교수 면담 준비, 미완료" [ref=f1e199] [cursor=pointer]
+                    - button "지도교수 면담 준비" [ref=f1e200] [cursor=pointer]
+                    - button "지도교수 면담 준비 순서 변경. 누른 채로 끌기" [ref=f1e201]
+              - region "완료" [ref=f1e202]:
+                - heading "완료 1" [level=3] [ref=f1e203]:
+                  - text: 완료
+                  - generic [ref=f1e204]: "1"
+                - list [ref=f1e205]:
+                  - listitem "연구실 장비 신청, 완료. 위아래 화살표로 같은 목록 안에서 이동" [ref=f1e206]:
+                    - checkbox "연구실 장비 신청, 완료" [checked] [ref=f1e207] [cursor=pointer]
+                    - button "연구실 장비 신청" [ref=f1e208] [cursor=pointer]
+                    - button "연구실 장비 신청 순서 변경. 누른 채로 끌기" [ref=f1e209]
+            - link "날짜 미정 할 일" [ref=f1e210] [cursor=pointer]:
+              - /url: /tasks/?preview=design
+              - text: 날짜 미정 할 일
+              - generic [aria-hidden] [ref=f1e211]: ›
+    - navigation "주요 메뉴" [ref=f1e212]:
+      - link "홈" [ref=f1e213] [cursor=pointer]:
+        - /url: /?preview=design
+      - link "캘린더" [ref=f1e214] [cursor=pointer]:
+        - /url: /calendar/?preview=design
+      - link "설정" [ref=f1e215] [cursor=pointer]:
+        - /url: /settings/?preview=design
+  - alert [ref=f1e216]

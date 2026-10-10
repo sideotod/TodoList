@@ -1,0 +1,146 @@
+'use client';
+
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import type { ItemView } from '../../domain/items';
+import { formatKoreanDate } from './calendar-dates';
+import { PeriodCard } from '../home/PeriodCard';
+import styles from './CalendarItemDetailsDialog.module.css';
+
+type CalendarItemDetailsDialogProps = {
+  item: ItemView;
+  nowMs: number;
+  onClose: () => void;
+  onEdit: () => void;
+  onToggleCountdown?: (item: ItemView, enabled: boolean) => Promise<void>;
+};
+
+export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onToggleCountdown }: CalendarItemDetailsDialogProps) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const display = item.display;
+  const timing = display.timing;
+  const initialCountdownEnabled = display.kind === 'event'
+    ? display.countdown?.enabled === true
+    : display.kind === 'window'
+      ? display.startCountdown.enabled
+      : display.kind === 'deadline' && display.startCountdown?.enabled === true;
+  const [countdownEnabled, setCountdownEnabled] = useState(initialCountdownEnabled);
+  const [countdownSaving, setCountdownSaving] = useState(false);
+  const [countdownError, setCountdownError] = useState('');
+  const dateLabel = timing.type === 'date'
+    ? timing.startDate && timing.startDate !== timing.endDate
+      ? `${formatKoreanDate(timing.startDate, timing.timeZone)} – ${formatKoreanDate(timing.endDate, timing.timeZone)}`
+      : formatKoreanDate(timing.endDate, timing.timeZone)
+    : timing.type === 'time'
+      ? formatTimedRange(timing.startAt, timing.endAt, timing.timeZone)
+      : '날짜 미정';
+
+  useEffect(() => {
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
+    return () => {
+      if (returnFocus?.isConnected) returnFocus.focus();
+    };
+  }, []);
+
+  async function toggleCountdown() {
+    if (!onToggleCountdown || display.kind === 'task' || countdownSaving) return;
+    if (display.kind === 'deadline' && !display.startCountdown) return;
+    const previous = countdownEnabled;
+    const next = !previous;
+    setCountdownEnabled(next);
+    setCountdownSaving(true);
+    setCountdownError('');
+    try {
+      await onToggleCountdown(item, next);
+    } catch (failure) {
+      setCountdownEnabled(previous);
+      setCountdownError(failure instanceof Error ? failure.message : '카운트다운 설정을 저장하지 못했습니다.');
+    } finally {
+      setCountdownSaving(false);
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const controls = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [])];
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+
+  return (
+    <div className={styles.overlay} onKeyDown={handleKeyDown} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section aria-labelledby="calendar-item-title" aria-modal="true" className={styles.dialog} ref={dialogRef} role="dialog">
+        <div className={styles.body}>
+          {display.kind === 'task' ? (
+            <article className={styles.taskSummary}>
+              <div className={styles.taskHeading}>
+                <h2 id="calendar-item-title">{display.title}</h2>
+                <span>{display.completion === 'completed' ? '완료' : '진행 중'}</span>
+              </div>
+              <div aria-label="할 일 완료 상태" aria-valuemax={100} aria-valuemin={0} aria-valuenow={display.completion === 'completed' ? 100 : 0} className={styles.taskTrack} role="progressbar">
+                <span className={styles.taskFill} data-complete={display.completion === 'completed'} />
+              </div>
+            </article>
+          ) : display.kind === 'event' && display.showInProgressSummary === false ? (
+            <article className={styles.taskSummary}>
+              <div className={styles.taskHeading}><h2 id="calendar-item-title">{display.title}</h2><span>일정</span></div>
+              <p className={styles.date}>{dateLabel}</p>
+            </article>
+          ) : <PeriodCard expanded item={item} nowMs={nowMs} titleId="calendar-item-title" />}
+          {display.kind === 'task' && <p className={styles.date}>{dateLabel}</p>}
+          {display.kind !== 'task' && (
+            <section aria-label="빠른 설정" className={styles.quickSettings}>
+              <div className={styles.quickSettingCopy}>
+                <strong>카운트다운</strong>
+                <span>{display.kind === 'event'
+                  ? `${display.countdown?.reference === 'end' ? '종료' : '시작'} 기준 · ${display.countdown?.daysBefore ?? 1}일 전부터`
+                  : display.kind === 'deadline' && !display.startCountdown
+                    ? '시작 날짜를 설정하면 사용할 수 있어요'
+                    : `시작 기준 · ${(display.kind === 'window' ? display.startCountdown.daysBefore : display.startCountdown?.daysBefore) ?? 1}일 전부터`}</span>
+              </div>
+              <button aria-checked={countdownEnabled} aria-label="카운트다운" className={styles.quickSwitch} data-enabled={countdownEnabled} disabled={!onToggleCountdown || countdownSaving || display.kind === 'deadline' && !display.startCountdown} onClick={() => { void toggleCountdown(); }} role="switch" type="button">
+                <span aria-hidden="true" />
+              </button>
+              {countdownError && <p className={styles.quickError} role="alert">{countdownError}</p>}
+            </section>
+          )}
+          {display.notes && <section className={styles.section}><h3>메모</h3><p>{display.notes}</p></section>}
+          {display.sourceUrl && <section className={styles.section}><h3>관련 링크</h3><a href={display.sourceUrl} rel="noreferrer" target="_blank">{display.sourceUrl}</a></section>}
+        </div>
+        <footer className={styles.footer}>
+          <button className={styles.secondary} onClick={onClose} ref={closeRef} type="button">닫기</button>
+          <button className={styles.primary} onClick={onEdit} type="button">수정</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function formatTimedRange(startAt: string | null, endAt: string | null, timeZone: string): string {
+  const dateFormatter = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', timeZone });
+  const timeFormatter = new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone });
+  if (!startAt && !endAt) return '날짜 미정';
+  if (!startAt && endAt) return `${dateFormatter.format(new Date(endAt))} · 마감 ${timeFormatter.format(new Date(endAt))}`;
+  if (startAt && !endAt) return `${dateFormatter.format(new Date(startAt))} · ${timeFormatter.format(new Date(startAt))} 시작`;
+  const start = new Date(startAt!);
+  const end = new Date(endAt!);
+  const startDate = dateFormatter.format(start);
+  const endDate = dateFormatter.format(end);
+  const startTime = timeFormatter.format(start);
+  const endTime = timeFormatter.format(end);
+  return startDate === endDate ? `${startDate} · ${startTime} – ${endTime}` : `${startDate} ${startTime} – ${endDate} ${endTime}`;
+}

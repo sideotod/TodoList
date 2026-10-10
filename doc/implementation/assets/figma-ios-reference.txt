@@ -1,0 +1,362 @@
+Figma get_design_context 원본 참고 코드 · 2026-10-03
+화면 구조 추출 참고용. 앱 구현이 아니며 임시 asset URL은 배포하지 않는다.
+
+const assetPathPrefix = "<TEMPORARY_ASSET_URL_REMOVED>";
+const imgVectorHomeSelected = `${assetPathPrefix}/98f37.svg`;
+const imgEventDot1 = `${assetPathPrefix}/fcbfe.svg`;
+const imgEventDot2 = `${assetPathPrefix}/bc3f9.svg`;
+const imgEventDot3 = `${assetPathPrefix}/56d18.svg`;
+const imgEventDot4 = `${assetPathPrefix}/b13cf.svg`;
+const imgSelectedDateFill = `${assetPathPrefix}/d0dce.svg`;
+const imgEventDot5 = `${assetPathPrefix}/14fb3.svg`;
+const imgEventDot6 = `${assetPathPrefix}/24d80.svg`;
+const imgEventDot7 = `${assetPathPrefix}/3871a.svg`;
+const imgEventDot8 = `${assetPathPrefix}/5c215.svg`;
+const imgProgressStartNotReachedMobile = `${assetPathPrefix}/45e8e.svg`;
+const imgCheckMark = `${assetPathPrefix}/92e99.svg`;
+const imgVectorCalendar = `${assetPathPrefix}/978d7.svg`;
+const imgUser = `${assetPathPrefix}/6ab6e.svg`;
+
+function IconHomeSelected({ className }: { className?: string }) {
+  return (
+    <div className={className || "relative size-[24px]"} data-node-id="6:11" data-name="Icon/Home · selected">
+      <div className="absolute left-0 size-[24px] top-0" data-node-id="6:12" data-name="Vector/Home · selected">
+        <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgVectorHomeSelected} />
+      </div>
+    </div>
+  );
+}
+
+type TaskRowOpenProps = {
+  className?: string;
+  taskLabel?: string;
+};
+
+function TaskRowOpen({ className, taskLabel = "논문 초안 정리" }: TaskRowOpenProps) {
+  return (
+    <div className={className || "content-stretch flex gap-[16px] h-[44px] items-center relative w-[420px]"} data-node-id="6:30" data-name="Task row / Open">
+      <div className="bg-[var(--surface\/white,white)] border-[1.3px] border-[var(--control\/outline,#8f96ad)] border-solid relative rounded-[5px] shrink-0 size-[22px]" data-node-id="6:31" data-name="Checkbox" />
+      <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[18px] text-[color:var(--text\/primary,#211f30)] whitespace-nowrap" data-node-id="6:32">
+        {taskLabel}
+      </p>
+    </div>
+  );
+}
+
+type CalendarCompactDayCellProps = {
+  className?: string;
+  day?: string;
+  dot1?: boolean;
+  dot2?: boolean;
+};
+
+function CalendarCompactDayCell({ className, day = "1", dot1 = false, dot2 = false }: CalendarCompactDayCellProps) {
+  return (
+    <div className={className || "h-[40px] relative w-[50.571px]"} data-node-id="7:230" data-name="Calendar compact / Day cell">
+      <div className="-translate-x-1/2 -translate-y-1/2 [word-break:break-word] absolute flex flex-col font-['Noto_Sans_KR:Medium'] font-medium justify-center leading-[0] left-[25.29px] size-[26px] text-[13px] text-[color:var(--text\/primary,#211f30)] text-center top-[13px]" data-node-id="7:231">
+        <p className="leading-[normal]">{day}</p>
+      </div>
+      {dot1 && (
+        <div className="absolute left-[21px] size-[3px] top-[33px]" data-node-id="7:232" data-name="Event dot 1">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEventDot1} />
+        </div>
+      )}
+      {dot2 && (
+        <div className="absolute left-[26px] size-[3px] top-[33px]" data-node-id="7:233" data-name="Event dot 2">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEventDot2} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type CalendarCompactSundayCellProps = {
+  className?: string;
+  day?: string;
+  dot1?: boolean;
+  dot2?: boolean;
+};
+
+function CalendarCompactSundayCell({ className, day = "1", dot1 = false, dot2 = false }: CalendarCompactSundayCellProps) {
+  return (
+    <div className={className || "h-[40px] relative w-[50.571px]"} data-node-id="7:243" data-name="Calendar compact / Sunday cell">
+      <div className="-translate-x-1/2 -translate-y-1/2 [word-break:break-word] absolute flex flex-col font-['Noto_Sans_KR:Medium'] font-medium justify-center leading-[0] left-[25.29px] size-[26px] text-[13px] text-[color:var(--accent\/lavender,#6e4df5)] text-center top-[13px]" data-node-id="7:244">
+        <p className="leading-[normal]">{day}</p>
+      </div>
+      {dot1 && (
+        <div className="absolute left-[21px] size-[3px] top-[33px]" data-node-id="7:245" data-name="Event dot 1">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEventDot3} />
+        </div>
+      )}
+      {dot2 && (
+        <div className="absolute left-[26px] size-[3px] top-[33px]" data-node-id="7:246" data-name="Event dot 2">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEventDot4} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type CalendarCompactSelectedDayCellProps = {
+  className?: string;
+  day?: string;
+  dot1?: boolean;
+  dot2?: boolean;
+};
+
+function CalendarCompactSelectedDayCell({ className, day = "1", dot1 = false, dot2 = false }: CalendarCompactSelectedDayCellProps) {
+  return (
+    <div className={className || "h-[40px] relative w-[50.571px]"} data-node-id="7:234" data-name="Calendar compact / Selected day cell">
+      <div className="absolute left-[12.29px] size-[26px] top-0" data-node-id="7:235" data-name="Selected date fill">
+        <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgSelectedDateFill} />
+      </div>
+      <div className="-translate-x-1/2 -translate-y-1/2 [word-break:break-word] absolute flex flex-col font-['Noto_Sans_KR:Medium'] font-medium justify-center leading-[0] left-[25.29px] size-[26px] text-[13px] text-[color:var(--surface\/white,white)] text-center top-[13px]" data-node-id="7:236">
+        <p className="leading-[normal]">{day}</p>
+      </div>
+      {dot1 && (
+        <div className="absolute left-[21px] size-[3px] top-[33px]" data-node-id="7:237" data-name="Event dot 1">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEventDot5} />
+        </div>
+      )}
+      {dot2 && (
+        <div className="absolute left-[26px] size-[3px] top-[33px]" data-node-id="7:238" data-name="Event dot 2">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEventDot6} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type CalendarCompactOutsideDayCellProps = {
+  className?: string;
+  day?: string;
+  dot1?: boolean;
+  dot2?: boolean;
+};
+
+function CalendarCompactOutsideDayCell({ className, day = "1", dot1 = false, dot2 = false }: CalendarCompactOutsideDayCellProps) {
+  return (
+    <div className={className || "h-[40px] relative w-[50.571px]"} data-node-id="7:239" data-name="Calendar compact / Outside day cell">
+      <div className="-translate-x-1/2 -translate-y-1/2 [word-break:break-word] absolute flex flex-col font-['Noto_Sans_KR:Medium'] font-medium justify-center leading-[0] left-[25.29px] size-[26px] text-[13px] text-[color:var(--text\/muted,#a1a6b8)] text-center top-[13px]" data-node-id="7:240">
+        <p className="leading-[normal]">{day}</p>
+      </div>
+      {dot1 && (
+        <div className="absolute left-[21px] size-[3px] top-[33px]" data-node-id="7:241" data-name="Event dot 1">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEventDot7} />
+        </div>
+      )}
+      {dot2 && (
+        <div className="absolute left-[26px] size-[3px] top-[33px]" data-node-id="7:242" data-name="Event dot 2">
+          <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEventDot8} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProgressStartNotReachedMobile({ className }: { className?: string }) {
+  return (
+    <div className={className || "h-[8px] relative w-[354px]"} data-node-id="8:256" data-name="Progress / Start not reached · mobile">
+      <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgProgressStartNotReachedMobile} />
+    </div>
+  );
+}
+
+function ProgressTimeElapsedMobile({ className }: { className?: string }) {
+  return (
+    <div className={className || "bg-[var(--progress\\/track,#e8e8f2)] h-[8px] relative rounded-[4px] w-[354px]"} data-node-id="8:262" data-name="Progress / Time elapsed · mobile">
+      <div className="absolute bg-[var(--accent\/lavender,#6e4df5)] h-[8px] left-0 rounded-[4px] top-0 w-[241px]" data-node-id="8:263" data-name="Elapsed fill" />
+    </div>
+  );
+}
+
+export default function HomeMonthlyTasksIOs() {
+  return (
+    <div className="bg-[var(--surface\/white,white)] content-stretch flex flex-col gap-[12px] items-center pb-[14px] pt-[30px] px-[18px] relative size-full" data-node-id="7:247" data-name="Home / Monthly Tasks · iOS">
+      <div className="content-stretch flex flex-col gap-[12px] h-[184px] items-start relative shrink-0 w-[354px]" data-node-id="7:248" data-name="Upcoming periods">
+        <div className="content-stretch flex flex-col gap-[6px] h-[75px] items-start relative shrink-0 w-[354px]" data-node-id="7:249" data-name="Period · 논문 초안 제출">
+          <div className="[word-break:break-word] content-stretch flex font-['Noto_Sans_KR:Medium'] font-medium h-[22px] items-center justify-between leading-[normal] relative shrink-0 text-[color:var(--text\/primary,#211f30)] w-[354px] whitespace-nowrap" data-node-id="7:250" data-name="Title and concise state">
+            <p className="relative shrink-0 text-[15px]" data-node-id="7:251">
+              논문 초안 제출
+            </p>
+            <p className="relative shrink-0 text-[12px]" data-node-id="7:252">
+              미완료 (2/3)
+            </p>
+          </div>
+          <ProgressTimeElapsedMobile className="bg-[var(--progress\/track,#e8e8f2)] h-[8px] relative rounded-[4px] shrink-0 w-[354px]" />
+          <div className="[word-break:break-word] content-stretch flex font-['Noto_Sans_KR:Regular'] font-normal h-[15px] items-center justify-between leading-[normal] relative shrink-0 text-[11px] text-[color:var(--text\/secondary,#596178)] w-[354px] whitespace-nowrap" data-node-id="7:255" data-name="Start and end">
+            <p className="relative shrink-0" data-node-id="7:256">
+              9월 19일 (금) 18:00
+            </p>
+            <p className="relative shrink-0" data-node-id="7:257">
+              10월 9일 (금) 18:00
+            </p>
+          </div>
+        </div>
+        <div className="content-stretch flex flex-col gap-[6px] h-[75px] items-start relative shrink-0 w-[354px]" data-node-id="7:258" data-name="Period · 수강신청 본신청">
+          <div className="[word-break:break-word] content-stretch flex font-['Noto_Sans_KR:Medium'] font-medium h-[22px] items-center justify-between relative shrink-0 text-[color:var(--text\/primary,#211f30)] w-[354px] whitespace-nowrap" data-node-id="7:259" data-name="Title and concise state">
+            <p className="leading-[normal] relative shrink-0 text-[15px]" data-node-id="7:260">
+              수강신청 본신청
+            </p>
+            <p className="leading-[0] relative shrink-0 text-[0px]" data-node-id="7:261">
+              <span className="font-['Noto_Sans_KR:Regular'] font-normal leading-[normal] text-[#211f30] text-[13px]">시작까지</span>
+              <span className="leading-[normal] text-[#7c3aed] text-[17px]">{` 08:50`}</span>
+            </p>
+          </div>
+          <ProgressStartNotReachedMobile className="h-[8px] relative shrink-0 w-[354px]" />
+          <div className="[word-break:break-word] content-stretch flex font-['Noto_Sans_KR:Regular'] font-normal h-[15px] items-center justify-between leading-[normal] relative shrink-0 text-[11px] text-[color:var(--text\/secondary,#596178)] w-[354px] whitespace-nowrap" data-node-id="7:264" data-name="Start and end">
+            <p className="relative shrink-0" data-node-id="7:265">
+              10월 3일 (토) 10:00
+            </p>
+            <p className="relative shrink-0" data-node-id="7:266">
+              종료일 미정
+            </p>
+          </div>
+        </div>
+        <p className="[word-break:break-word] font-['Noto_Sans_KR:Regular'] font-normal h-[16px] leading-[normal] relative shrink-0 text-[12px] text-[color:var(--text\/secondary,#596178)] text-right w-[354px]" data-node-id="31:255">
+          나머지 기간 3개 보기
+        </p>
+      </div>
+      <div className="content-stretch flex flex-col gap-[8px] h-[296px] items-start relative shrink-0 w-[354px]" data-node-id="7:267" data-name="Month calendar">
+        <div className="[word-break:break-word] content-stretch flex h-[28px] items-center justify-between leading-[normal] relative shrink-0 w-[354px] whitespace-nowrap" data-node-id="7:268" data-name="Month and navigation">
+          <p className="font-['Noto_Sans_KR:Medium'] font-medium relative shrink-0 text-[18px] text-[color:var(--text\/primary,#211f30)]" data-node-id="7:269">
+            2026년 10월
+          </p>
+          <div className="content-stretch flex font-['Noto_Sans_KR:Regular'] font-normal gap-[8px] h-[28px] items-center relative shrink-0 text-[23px] text-[color:var(--text\/secondary,#596178)] text-center w-[58px]" data-node-id="7:270" data-name="Month navigation controls">
+            <p className="relative shrink-0" data-node-id="7:271">
+              ‹
+            </p>
+            <p className="relative shrink-0" data-node-id="7:272">
+              ›
+            </p>
+          </div>
+        </div>
+        <div className="content-stretch flex h-[20px] items-center relative shrink-0 w-[354px]" data-node-id="7:273" data-name="Weekdays · Sunday first">
+          <div className="content-stretch flex h-[20px] items-center justify-center relative shrink-0 w-[50.571px]" data-node-id="7:274" data-name="Weekday 일">
+            <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[12px] text-[color:var(--text\/primary,#211f30)] text-center whitespace-nowrap" data-node-id="7:275">
+              일
+            </p>
+          </div>
+          <div className="content-stretch flex h-[20px] items-center justify-center relative shrink-0 w-[50.571px]" data-node-id="7:276" data-name="Weekday 월">
+            <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[12px] text-[color:var(--text\/secondary,#596178)] text-center whitespace-nowrap" data-node-id="7:277">
+              월
+            </p>
+          </div>
+          <div className="content-stretch flex h-[20px] items-center justify-center relative shrink-0 w-[50.571px]" data-node-id="7:278" data-name="Weekday 화">
+            <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[12px] text-[color:var(--text\/secondary,#596178)] text-center whitespace-nowrap" data-node-id="7:279">
+              화
+            </p>
+          </div>
+          <div className="content-stretch flex h-[20px] items-center justify-center relative shrink-0 w-[50.571px]" data-node-id="7:280" data-name="Weekday 수">
+            <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[12px] text-[color:var(--text\/secondary,#596178)] text-center whitespace-nowrap" data-node-id="7:281">
+              수
+            </p>
+          </div>
+          <div className="content-stretch flex h-[20px] items-center justify-center relative shrink-0 w-[50.571px]" data-node-id="7:282" data-name="Weekday 목">
+            <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[12px] text-[color:var(--text\/secondary,#596178)] text-center whitespace-nowrap" data-node-id="7:283">
+              목
+            </p>
+          </div>
+          <div className="content-stretch flex h-[20px] items-center justify-center relative shrink-0 w-[50.571px]" data-node-id="7:284" data-name="Weekday 금">
+            <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[12px] text-[color:var(--text\/secondary,#596178)] text-center whitespace-nowrap" data-node-id="7:285">
+              금
+            </p>
+          </div>
+          <div className="content-stretch flex h-[20px] items-center justify-center relative shrink-0 w-[50.571px]" data-node-id="7:286" data-name="Weekday 토">
+            <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[12px] text-[color:var(--text\/secondary,#596178)] text-center whitespace-nowrap" data-node-id="7:287">
+              토
+            </p>
+          </div>
+        </div>
+        <div className="content-stretch flex h-[40px] items-start relative shrink-0 w-[354px]" data-node-id="7:288" data-name="Week 1">
+          <CalendarCompactOutsideDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="27" />
+          <CalendarCompactOutsideDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="28" />
+          <CalendarCompactOutsideDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="29" />
+          <CalendarCompactOutsideDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="30" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="2" dot1 dot2 />
+          <CalendarCompactSelectedDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="3" dot1 dot2 />
+        </div>
+        <div className="content-stretch flex h-[40px] items-start relative shrink-0 w-[354px]" data-node-id="7:318" data-name="Week 2">
+          <CalendarCompactSundayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="4" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="5" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="6" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="7" dot1 dot2 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="8" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="9" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="10" dot1 />
+        </div>
+        <div className="content-stretch flex h-[40px] items-start relative shrink-0 w-[354px]" data-node-id="7:347" data-name="Week 3">
+          <CalendarCompactSundayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="11" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="12" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="13" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="14" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="15" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="16" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="17" />
+        </div>
+        <div className="content-stretch flex h-[40px] items-start relative shrink-0 w-[354px]" data-node-id="7:376" data-name="Week 4">
+          <CalendarCompactSundayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="18" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="19" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="20" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="21" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="22" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="23" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="24" dot1 />
+        </div>
+        <div className="content-stretch flex h-[40px] items-start relative shrink-0 w-[354px]" data-node-id="7:405" data-name="Week 5">
+          <CalendarCompactSundayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="25" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="26" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="27" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="28" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="29" />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="30" dot1 />
+          <CalendarCompactDayCell className="h-[40px] relative shrink-0 w-[50.571px]" day="31" />
+        </div>
+      </div>
+      <div className="content-stretch flex flex-col gap-[10px] h-[156px] items-start relative shrink-0 w-[354px]" data-node-id="7:434" data-name="Selected date tasks">
+        <div className="content-stretch flex h-[28px] items-center justify-between relative shrink-0 w-[354px]" data-node-id="7:435" data-name="Selected date and add action">
+          <p className="[word-break:break-word] font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] relative shrink-0 text-[17px] text-[color:var(--text\/primary,#211f30)] whitespace-nowrap" data-node-id="7:436">
+            10월 3일 (토) 할 일
+          </p>
+          <div className="content-stretch flex items-center justify-center relative shrink-0 size-[28px]" data-node-id="7:437" data-name="Add a task">
+            <p className="[word-break:break-word] font-['Noto_Sans_KR:Regular'] font-normal leading-[normal] relative shrink-0 text-[24px] text-[color:var(--accent\/lavender,#6e4df5)] text-center whitespace-nowrap" data-node-id="7:438">{`+ `}</p>
+          </div>
+        </div>
+        <div className="content-stretch flex flex-col gap-[3px] h-[114px] items-start relative shrink-0 w-[354px]" data-node-id="7:439" data-name="Task list">
+          <div className="content-stretch flex gap-[16px] h-[36px] items-center relative shrink-0 w-[354px]" data-node-id="7:440" data-name="연구실 장비 신청">
+            <div className="bg-[var(--accent\/lavender,#6e4df5)] content-stretch flex items-center justify-center relative rounded-[5px] shrink-0 size-[22px]" data-node-id="I7:440;6:26" data-name="Checkbox">
+              <div className="relative shrink-0 size-[14px]" data-node-id="I7:440;6:27" data-name="Check mark">
+                <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgCheckMark} />
+              </div>
+            </div>
+            <p className="[text-decoration-skip-ink:none] [text-underline-position:from-font] [word-break:break-word] decoration-from-font decoration-solid font-['Noto_Sans_KR:Medium'] font-medium leading-[normal] line-through relative shrink-0 text-[18px] text-[color:var(--text\/secondary,#596178)] whitespace-nowrap" data-node-id="I7:440;6:29">
+              연구실 장비 신청
+            </p>
+          </div>
+          <TaskRowOpen className="content-stretch flex gap-[16px] h-[36px] items-center relative shrink-0 w-[354px]" />
+          <TaskRowOpen className="content-stretch flex gap-[16px] h-[36px] items-center relative shrink-0 w-[354px]" taskLabel="지도교수 면담 준비" />
+        </div>
+      </div>
+      <div className="flex-[1_0_0] min-h-px relative w-[354px]" data-node-id="7:467" data-name="Flexible white space" />
+      <div className="content-stretch flex gap-[24px] h-[46px] items-center justify-center relative shrink-0 w-full" data-node-id="7:451" data-name="Bottom navigation · centered icons">
+        <div className="content-stretch flex flex-col gap-[5px] h-[46px] items-center relative shrink-0 w-[56px]" data-node-id="7:452" data-name="Home · selected · icon only">
+          <IconHomeSelected className="relative shrink-0 size-[24px]" />
+          <div className="bg-[var(--accent\/lavender,#6e4df5)] h-[3px] relative rounded-[2px] shrink-0 w-[28px]" data-node-id="I7:452;6:22" data-name="Selected indicator" />
+        </div>
+        <div className="content-stretch flex flex-col gap-[5px] h-[46px] items-center relative shrink-0 w-[56px]" data-node-id="7:459" data-name="Calendar · icon only">
+          <div className="relative shrink-0 size-[24px]" data-node-id="I7:459;6:19" data-name="Icon slot">
+            <div className="absolute left-0 size-[24px] top-0" data-node-id="I7:459;6:19;6:15" data-name="Vector/Calendar">
+              <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgVectorCalendar} />
+            </div>
+          </div>
+        </div>
+        <div className="content-stretch flex flex-col gap-[5px] h-[46px] items-center relative shrink-0 w-[56px]" data-node-id="22:290" data-name="User Profile · icon only">
+          <div className="relative shrink-0 size-[24px]" data-node-id="22:291" data-name="user">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgUser} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

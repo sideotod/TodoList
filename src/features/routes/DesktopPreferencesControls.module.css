@@ -1,0 +1,23 @@
+.status,
+.error {
+  margin: 6px 0 0;
+  color: var(--color-secondary);
+  font-size: var(--font-size-9);
+}
+
+.error {
+  color: var(--color-error);
+}
+
+.reset {
+  margin-top: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-9);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

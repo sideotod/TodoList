@@ -1,0 +1,423 @@
+.overlay {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  padding: 20px;
+  background: var(--color-overlay);
+  backdrop-filter: blur(3px);
+}
+
+.dialog {
+  box-sizing: border-box;
+  display: flex;
+  width: min(420px, 100%);
+  max-height: min(78svh, 560px);
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-dialog);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-dialog);
+  animation: reveal 160ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.header,
+.footer {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 18px 20px;
+}
+
+.header h2 {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: var(--font-size-17);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.header p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-11);
+}
+
+.body {
+  box-sizing: border-box;
+  display: grid;
+  min-height: 0;
+  gap: var(--space-4);
+  overflow: auto;
+  padding: 0 20px 18px;
+  overscroll-behavior: contain;
+}
+
+.mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--color-secondary);
+  font-size: var(--font-size-12);
+}
+
+.mode legend {
+  width: 100%;
+  margin-bottom: 2px;
+  color: var(--color-secondary);
+  font-size: var(--font-size-12);
+  font-weight: 550;
+}
+
+.mode label,
+.foldChoices label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-foreground);
+}
+
+.mode input,
+.foldChoices input,
+.switch input {
+  accent-color: var(--color-accent);
+}
+
+.switch input.toggleControl {
+  position: absolute;
+  width: 38px;
+  height: 22px;
+  flex: none;
+  margin: 0 2px 0 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch input.toggleControl + span {
+  position: relative;
+  min-height: 22px;
+  padding-left: 48px;
+  line-height: 22px;
+}
+
+.switch input.toggleControl + span::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 38px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  content: '';
+  transition: background-color 160ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.switch input.toggleControl + span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--color-shadow) 20%, transparent);
+  content: '';
+  transition: transform 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.switch input.toggleControl:checked + span::before {
+  background: var(--color-accent);
+}
+
+.switch input.toggleControl:checked + span::after {
+  transform: translateX(16px);
+}
+
+.switch input.toggleControl:focus-visible + span::before {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-foreground);
+  font-size: var(--font-size-12);
+}
+
+.dateSummary {
+  margin: -5px 0 0;
+  padding: 11px var(--space-3);
+  border-radius: var(--radius-card-compact);
+  background: var(--color-accent-soft);
+  color: var(--color-secondary);
+  font-size: var(--font-size-12);
+}
+
+.dateGrid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--color-secondary);
+  font-size: var(--font-size-12);
+  font-weight: 550;
+}
+
+.field > input,
+.field > select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-control-outline);
+  min-width: 0;
+  border-radius: var(--radius-control-large);
+  background: var(--color-hover);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--font-size-14);
+  font-weight: 450;
+}
+
+.field select {
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23000' stroke-opacity='.62' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-position: right 13px center;
+  background-repeat: no-repeat;
+  background-size: 12px 8px;
+}
+
+.field > input:focus-visible,
+.field > select:focus-visible,
+.cancel:focus-visible,
+.apply:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.field small {
+  color: var(--color-error);
+  font-size: var(--font-size-11);
+  font-weight: 450;
+}
+
+.foldChoices {
+  display: grid;
+  gap: 7px;
+  color: var(--color-secondary);
+  font-size: var(--font-size-11);
+  font-weight: 450;
+}
+
+.reminder {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.reminderCompact {
+  gap: var(--space-2);
+  padding-top: 10px;
+}
+
+.reminderCompact .reminderLabel {
+  font-size: var(--font-size-10);
+}
+
+.reminderLabel {
+  color: var(--color-foreground);
+  font-size: var(--font-size-12);
+  white-space: nowrap;
+}
+
+.reminderChoices {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.reminderCompact .reminderChoices {
+  gap: 5px;
+}
+
+.reminderCompact .reminderChoices button {
+  min-height: 30px;
+  padding-inline: 8px;
+  font-size: var(--font-size-10);
+}
+
+@media (max-width: 440px) {
+  .reminder {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  .reminderChoices {
+    justify-content: flex-start;
+  }
+}
+
+.reminderChoices button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-11);
+}
+
+.reminderChoices .reminderSelected {
+  border-color: var(--color-border-strong);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.reminderChoices button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.reminderCompact .reminderChoices button {
+  min-height: 30px;
+  font-size: var(--font-size-10);
+}
+
+.countdown {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.countdownToggle {
+  position: relative;
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-foreground);
+  cursor: pointer;
+  font-size: var(--font-size-12);
+}
+
+.countdownToggle input {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 42px;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.countdownSwitch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  transition: background-color 160ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.countdownSwitch::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--color-shadow) 20%, transparent);
+  content: '';
+  transition: transform 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.countdownToggle input:checked + .countdownSwitch {
+  background: var(--color-accent);
+}
+
+.countdownToggle input:checked + .countdownSwitch::after {
+  transform: translateX(16px);
+}
+
+.countdownToggle input:focus-visible + .countdownSwitch {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.footer {
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.cancel,
+.apply {
+  min-width: 76px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-card-compact);
+  background: var(--color-surface);
+  color: var(--color-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-12);
+  font-weight: 550;
+}
+
+.apply {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-surface);
+}
+
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 560px) {
+  .overlay { align-items: end; padding: 0; }
+  .dialog { width: 100%; max-height: 86svh; border-radius: 20px 20px 0 0; }
+  .field > input, .field > select { font-size: var(--font-size-16); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog { animation: none; }
+  .countdownSwitch,
+  .countdownSwitch::after { transition: none; }
+  .switch input.toggleControl,
+  .switch input.toggleControl + span::before,
+  .switch input.toggleControl + span::after { transition: none; }
+}

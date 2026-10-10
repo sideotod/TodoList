@@ -1,0 +1,13 @@
+node_modules/
+.pnpm-store/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+playwright-report/
+test-results/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+.env*
+!.env.example

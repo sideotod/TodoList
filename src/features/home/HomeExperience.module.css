@@ -1,0 +1,45 @@
+.page {
+  position: relative;
+  display: block;
+  width: min(var(--app-content-width, 840px), calc(100% - 48px));
+  min-height: 100%;
+  margin-inline: auto;
+  padding: 110px 0 82px;
+}
+
+.workspace {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 520px) minmax(0, 296px);
+  align-items: start;
+  gap: var(--space-5);
+  margin: 26px auto 0;
+}
+
+.calendarPanel {
+  min-width: 0;
+}
+
+.feedback {
+  position: absolute;
+  top: 174px;
+  right: 0;
+  left: 0;
+  max-width: 100%;
+  margin: 0;
+  color: var(--color-error);
+  font-size: var(--font-size-11);
+}
+
+@media (max-width: 760px) {
+  .page {
+    width: calc(100% - 32px);
+    padding-top: 82px;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+    margin-top: 20px;
+  }
+}

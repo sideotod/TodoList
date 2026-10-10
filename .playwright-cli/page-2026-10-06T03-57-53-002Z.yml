@@ -1,0 +1,44 @@
+- main [ref=f5e2]:
+  - region [ref=f5e3]:
+    - text: 처음 한 번만 설정해 주세요
+    - heading "계정 동기화를 준비해요" [level=1] [ref=f5e4]
+    - paragraph [ref=f5e5]: Firebase 웹 앱 설정이 아직 연결되지 않았습니다. 아래 순서로 프로젝트를 만든 뒤 브라우저 SDK 값을 로컬 환경 파일에 넣어 주세요.
+    - list [ref=f5e6]:
+      - listitem [ref=f5e7]: Firebase Console에서 프로젝트를 만들고 웹 앱(</>)을 등록합니다.
+      - listitem [ref=f5e8]:
+        - text: 프로젝트 설정 → 일반 → 내 앱의 SDK 설정에서
+        - code [ref=f5e9]: apiKey
+        - text: ","
+        - code [ref=f5e10]: authDomain
+        - text: ","
+        - code [ref=f5e11]: projectId
+        - text: ","
+        - code [ref=f5e12]: appId
+        - text: 를 확인합니다.
+      - listitem [ref=f5e13]: Authentication에서 Google 로그인을 켜고 현재 도메인을 승인된 도메인에 추가합니다.
+      - listitem [ref=f5e14]:
+        - text: Firestore Database를 만들고 위치로 서울
+        - code [ref=f5e15]: asia-northeast3
+        - text: 를 선택합니다.
+      - listitem [ref=f5e16]:
+        - code [ref=f5e17]: .env.example
+        - text: 을
+        - code [ref=f5e18]: .env.local
+        - text: 로 복사하고 아래 환경변수에 웹 앱 값을 입력합니다.
+      - listitem [ref=f5e19]:
+        - text: "개발 서버를 다시 시작합니다:"
+        - code [ref=f5e20]: pnpm dev
+    - code [ref=f5e22]: NEXT_PUBLIC_FIREBASE_API_KEY= NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN= NEXT_PUBLIC_FIREBASE_PROJECT_ID= NEXT_PUBLIC_FIREBASE_APP_ID= NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false
+    - paragraph [ref=f5e23]:
+      - text: 웹 앱의
+      - code [ref=f5e24]: apiKey
+      - text: 는 브라우저 설정 식별자입니다. 서비스 계정 키나 Gemini API 키를 넣지 말고, 실제 권한은 Firebase Authentication과 Firestore Rules로 제한합니다.
+      - code [ref=f5e25]: .env.local
+      - text: 은 저장소에 커밋하지 마세요.
+    - navigation "Firebase 설정 도움말" [ref=f5e26]:
+      - link "Firebase Console 열기" [ref=f5e27] [cursor=pointer]:
+        - /url: https://console.firebase.google.com/
+      - link "웹 앱 설정 문서" [ref=f5e28] [cursor=pointer]:
+        - /url: https://firebase.google.com/docs/web/setup
+      - link "Firebase API key 안내" [ref=f5e29] [cursor=pointer]:
+        - /url: https://firebase.google.com/docs/projects/api-keys
