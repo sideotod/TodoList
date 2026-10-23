@@ -1,0 +1,59 @@
+import Foundation
+
+@MainActor
+protocol ItemRepository: AnyObject {
+    func listItems() async throws -> [CalendarItem]
+    func item(id: String) async throws -> CalendarItem?
+    func upsert(_ item: CalendarItem) async throws
+    func upsert(_ item: CalendarItem, pendingMutation: PendingMutationDraft?) async throws
+    func delete(id: String) async throws
+    func delete(id: String, pendingMutation: PendingMutationDraft?) async throws
+}
+
+enum ItemRepositoryError: Error, LocalizedError {
+    case corruptPayload(itemID: String, underlying: Error)
+    case invalidPendingMutation
+    case persistence(underlying: Error)
+
+    var errorDescription: String? {
+        switch self {
+        case let .corruptPayload(itemID, underlying): "Saved item \(itemID) is unreadable: \(underlying.localizedDescription)"
+        case .invalidPendingMutation: "The pending account mutation is missing a valid owner or operation ID."
+        case let .persistence(underlying): "Local changes could not be saved: \(underlying.localizedDescription)"
+        }
+    }
+}
+
+@MainActor
+final class InMemoryItemRepository: ItemRepository {
+    private var items: [String: CalendarItem] = [:]
+
+    func listItems() async throws -> [CalendarItem] {
+        items.values.sorted { $0.id < $1.id }
+    }
+
+    func item(id: String) async throws -> CalendarItem? {
+        items[id]
+    }
+
+    func upsert(_ item: CalendarItem) async throws {
+        try ItemValidator.validate(item)
+        items[item.id] = item
+    }
+
+    func upsert(_ item: CalendarItem, pendingMutation: PendingMutationDraft?) async throws {
+        guard pendingMutation == nil else { throw ItemRepositoryError.invalidPendingMutation }
+        try await upsert(item)
+    }
+
+    func delete(id: String) async throws {
+        guard var item = items[id] else { return }
+        item.deletedAt = ISO8601DateFormatter.todoListTimestamp()
+        items[id] = item
+    }
+
+    func delete(id: String, pendingMutation: PendingMutationDraft?) async throws {
+        guard pendingMutation == nil else { throw ItemRepositoryError.invalidPendingMutation }
+        try await delete(id: id)
+    }
+}
