@@ -5,6 +5,7 @@ protocol ItemRepository: AnyObject {
     func listItems() async throws -> [CalendarItem]
     func item(id: String) async throws -> CalendarItem?
     func upsert(_ item: CalendarItem) async throws
+    func upsertMany(_ items: [CalendarItem]) async throws
     func upsert(_ item: CalendarItem, pendingMutation: PendingMutationDraft?) async throws
     func delete(id: String) async throws
     func delete(id: String, pendingMutation: PendingMutationDraft?) async throws
@@ -28,6 +29,10 @@ enum ItemRepositoryError: Error, LocalizedError {
 final class InMemoryItemRepository: ItemRepository {
     private var items: [String: CalendarItem] = [:]
 
+    init(initialItems: [CalendarItem] = []) {
+        items = Dictionary(uniqueKeysWithValues: initialItems.map { ($0.id, $0) })
+    }
+
     func listItems() async throws -> [CalendarItem] {
         items.values.sorted { $0.id < $1.id }
     }
@@ -39,6 +44,17 @@ final class InMemoryItemRepository: ItemRepository {
     func upsert(_ item: CalendarItem) async throws {
         try ItemValidator.validate(item)
         items[item.id] = item
+    }
+
+    func upsertMany(_ items: [CalendarItem]) async throws {
+        var uniqueIDs = Set<String>()
+        for item in items {
+            try ItemValidator.validate(item)
+            guard uniqueIDs.insert(item.id).inserted else {
+                throw ItemValidationError.invalid(path: "items.id", reason: "Imported item identifiers must be unique.")
+            }
+        }
+        for item in items { self.items[item.id] = item }
     }
 
     func upsert(_ item: CalendarItem, pendingMutation: PendingMutationDraft?) async throws {

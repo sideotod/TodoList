@@ -62,7 +62,7 @@
 - Migration report records source/format compatibility, test output, Supabase external requirements, and any remaining limitation.
 
 - [ ] Launch the real app and verify CRUD for tasks, Progress, and events; relaunch and verify persistence.
-- [ ] Verify recurrence, time-zone/date boundaries, filters/sorting, linked-task status, import/export, preferences, and notification behavior.
+- [ ] Verify recurrence, time-zone/date boundaries, filters/sorting, linked-task status, import/export, and preferences. Confirm the retired reminder feature does not request access or schedule notifications.
 - [ ] Capture required native windows and compare typography, spacing, hierarchy, and card proportions with the supplied references.
 - [ ] Run `swift build --package-path macos/TodoListApp`, `swift test --package-path macos/TodoListApp`, `bash script/tests/test_build_and_run.sh`, and `./script/build_and_run.sh --verify`; record exact results.
 - [ ] Verify live OAuth/sync only if project URL, publishable key, Google provider, and redirect allow-list are available; otherwise retain web source and record the blocker.

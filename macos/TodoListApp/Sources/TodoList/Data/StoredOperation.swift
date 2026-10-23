@@ -93,6 +93,8 @@ extension ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        if let fractional = formatter.date(from: value) { return fractional }
+        formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
     }
 }

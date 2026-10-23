@@ -4,7 +4,7 @@
 
 **Goal:** Deliver a native macOS TodoList.app matching v4 while preserving existing records, backups, and Supabase behavior.
 
-**Architecture:** Build a SwiftPM app in `macos/TodoListApp/` with a wire-compatible domain, SwiftData local repository, SwiftUI feature views, then add backup, native notifications, and Supabase sync. Keep all web code until the release plan's validation gate passes.
+**Architecture:** Build a SwiftPM app in `macos/TodoListApp/` with a wire-compatible domain, SwiftData local repository, SwiftUI feature views, backup import/export, and Supabase sync. Notifications were removed at the user's request. Keep all web code until the release plan's validation gate passes.
 
 **Tech Stack:** Swift 6, SwiftUI, SwiftData, Swift Testing/XCTest, macOS 14+, official `supabase-swift` package.
 
@@ -27,7 +27,7 @@ Each plan produces a reviewable milestone. Complete them in order; the release p
 
 1. [Foundation and local data](2026-10-23-swiftui-foundation.md)
 2. [v4 product experience](2026-10-23-swiftui-v4-experience.md)
-3. [Backup, notifications, auth, and sync](2026-10-23-swiftui-integrations.md)
+3. [Backup, auth, and sync](2026-10-23-swiftui-integrations.md)
 4. [App bundle, QA, docs, and conditional web cleanup](2026-10-23-swiftui-release.md)
 
 ## Review Focus

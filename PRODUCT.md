@@ -1,54 +1,18 @@
-# Product
+# TodoList macOS 제품 기준
 
-<!-- impeccable:product-schema 1 -->
+macOS에서 할 일, 일정, 중요한 시작·마감과 기간을 관리하는 네이티브 앱입니다. SwiftUI로 오늘·Progress·캘린더와 상세 인스펙터를 제공합니다.
 
-## Platform
+- 오늘: 가까운 시작과 마감, 선택 날짜 할 일, 월간 미니 달력과 일정.
+- Progress: 시작형·마감형·기간형 카드, D-day/카운트다운, 의미 있는 기간의 시간 경과율과 별도 작업 완료율, 필터·정렬.
+- 캘린더: 일/주/월/년, 일정 편집과 주간 반복 및 종료일, 항목별 상세 확인.
+- 공통: 로컬 CRUD와 저장, 검색, 키보드 조작, 설정, 기존 로컬 JSON 백업 호환.
+- 인스펙터: 맥락을 유지하며 선택 항목의 날짜, 작업, 메모, URL 및 편집·완료·삭제를 표시.
+- 알림: 2026-10-23 사용자 결정으로 제품 범위에서 제거.
 
-web
+독립 할 일과 체크리스트는 ID로 연결하고 연결된 할 일의 완료 상태를 기준으로 반영합니다. 데이터·계정·백엔드 스키마와 Git 복구 이력을 보존합니다.
 
-## Users
+## 완료되지 않은 범위
 
-Korean university and graduate students who coordinate classes, research, applications, academic deadlines, and everyday tasks across desktop macOS and iOS devices.
+Supabase 데이터 동기화·충돌 해결, 계정 형식 JSON 가져오기, ICS 가져오기 및 전체 UI/화면 크기별 검증이 남아 있습니다. OAuth는 코드와 설정 경로를 제공하지만 실제 계정 성공 흐름은 별도 검증이 필요합니다. 현재 앱을 모든 기능 이식이 끝난 출시본으로 간주하지 않습니다.
 
-## Product Purpose
-
-Todo combines a calendar with personal task and D-day planning. It helps students see what is happening on a date, what needs daily action, and how much time remains before an important schedule or deadline. Cross-device access between desktop and iOS is a core use case.
-
-## Positioning
-
-Todo presents daily tasks beside near deadlines and starts, with a selected-day agenda and mini calendar in the same workspace. Progress cards track deadline, start, and interval records, while Calendar provides day, week, month, and year views. A timed schedule remains distinct from a daily task.
-
-## Operating Context
-
-Users plan by selected date, review daily tasks and events, and track upcoming or completed academic periods. The product is Korean-first and macOS desktop-first; the desktop and iOS experiences share schedules.
-
-## Capabilities and Constraints
-
-- Create and edit daily tasks, timed calendar events, and period records with optional checklists.
-- The Today workspace keeps the nearest deadlines/starts and daily tasks in its main column, with a mini month and selected-day events in the side column.
-- Events appear in Calendar, the selected-day agenda, and optionally Progress; they do not become daily tasks.
-- Progress separates date countdown, meaningful interval elapsed time, and linked task completion.
-- Calendar supports day, week, month, and year views with independent task, event, and period visibility.
-- Keep existing period records available when simplifying new-item creation flows.
-- Calendar settings include week start, time display, time zone, visible hours, and item layers. The interface uses the quiet sage palette in the v4 reference with selectable accents; task category colors remain independently selectable.
-- Use existing item persistence and synchronization flows; do not introduce a separate event storage path.
-
-## Brand Commitments
-
-- Keep the product name Todo.
-- Use the supplied v4 desktop visual language: a compact macOS title bar/sidebar, restrained system typography, light neutral surfaces, and a muted sage selected accent.
-- Keep selectable interface accent colors separate from saved task and schedule category colors.
-- The interface and terminology remain Korean-first.
-
-## Evidence on Hand
-
-- Product and platform description: `AGENTS.md`.
-- Current working application and local design preview: this repository's Next.js app and `?preview=design` route.
-- Do not invent testimonials, usage figures, customer names, or commercial claims.
-
-## Product Principles
-
-1. Keep a schedule's meaning consistent across calendar, progress-card, sorting, and task views.
-2. Make dates and remaining time easy to scan.
-3. Preserve existing user data when creation flows change.
-4. Keep common planning actions usable across desktop and mobile.
+2026-10-23 사용자의 명시적 요청으로 이전 웹 소스·의존성을 제거하고 main에 반영합니다. 이전 웹 소스는 Git 커밋 `f24429f`에서 복구할 수 있습니다.

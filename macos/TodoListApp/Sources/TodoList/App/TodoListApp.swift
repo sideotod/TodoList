@@ -8,8 +8,16 @@ struct TodoListApp: App {
         WindowGroup {
             RootView(model: model)
                 .frame(minWidth: 860, minHeight: 620)
-                .task { await model.load() }
+                .task {
+                    await LegacyReminderCleanup.clearPendingRequests()
+                    await model.load()
+                }
         }
         .windowResizability(.contentSize)
+        .commands { AppCommands(model: model) }
+
+        Settings {
+            SettingsView(model: model)
+        }
     }
 }

@@ -1,62 +1,29 @@
 # AGENTS.md
 
-## 프로젝트 개요
-Next.js 16 기반 일정 캘린더 및 개인용 task 관리 툴(특히 대학생/대학원생 일정 D-Day 관리).
-desktop(macos)과 mobile(ios)이 연동되어 확인할 수 있는 것이 핵심
+## 프로젝트
 
-## 개발 환경 셋업
-- Node.js: `.node-version`의 24.21.0, pnpm: packageManager pin의 11.19.0
-- Supabase 프로젝트와 스키마 설정은 README.md를 참고
-- 의존성 설치: `pnpm install --frozen-lockfile`
-- 환경변수 예시 복사: `cp .env.example .env.local` (`.env.local`에 실서비스 secret을 저장하거나 commit하지 않음)
-- 개발 서버: `pnpm dev`
+Swift 6 + SwiftUI + SwiftData 기반 macOS 14 이상 네이티브 TodoList 앱. SwiftPM 실행 타깃은 `macos/TodoListApp/`의 `TodoList`입니다. Next.js 웹 소스는 사용자 요청으로 제거됐으며 Git 이력에 남습니다.
 
-## 테스트
-- 전체 테스트: `pnpm test`
-- 특정 unit 파일: `pnpm test:unit <파일명>`
-- 브라우저 미리보기 E2E: `pnpm test:e2e`
-- 작업 완료 전에 반드시 `pnpm test`와 `pnpm typecheck`를 통과시킬 것
+## 작업 원칙
 
-## 빌드 & 배포
-- 빌드: `pnpm build`
-- 린트: `pnpm lint`
-- 배포: main branch push
+- 사용자 지시: TDD 사용 금지. 구현 후 필요한 테스트로 검증합니다.
+- Swift로 구현하고 기능별 View, domain, repository, sync 계층을 분리합니다.
+- UI는 네이티브 SwiftUI를 사용하며 HTML/WebView로 대체하지 않습니다.
+- 시각 기준은 `design-reference/v4/` PNG, 상호작용 기준은 v4 HTML입니다.
+- 원격 데이터 접근은 repository/sync 계층에 둡니다. 백엔드 스키마와 사용자 데이터를 임의로 변경·초기화하지 않습니다.
+- JSON wire 형식, 안정적인 항목/연결 ID와 로컬 저장 호환성을 보존합니다.
+- 알림 기능은 사용자 요청으로 제거됐습니다. 권한 요청·예약·설정 UI를 재도입하지 않습니다. 기존 예약 삭제와 비활성 JSON 키 호환만 허용합니다.
+- Supabase 동기화 미연결 상태를 동작하는 기능처럼 표시하지 않습니다. 현재 제한은 README.md에 기록합니다.
+- secret/service_role 키, `.env.local`, 사용자 DB, 토큰을 커밋하지 않습니다.
+- `doc/`와 기존 계획은 설계 이력입니다. 최신 사용자 결정과 현재 README/PRODUCT/DESIGN을 우선합니다.
 
-## 아키텍처 (코드만 봐서는 모를 수 있는 것들)
-- 모든 DB 접근은 `src/lib/repository.ts`를 통해서만 (raw SQL 금지)
-- `src/payments/` 모듈은 별도의 인증 흐름을 가짐 (`src/auth/`와 분리)
-- API 응답은 `src/core/errors.ts`의 ErrorResponse 클래스 사용
-- 클라이언트 컴포넌트는 최상단에 'use client' 명시
+## 빌드와 검증
 
-## 코딩 컨벤션
-- 모든 새 코드는 TypeScript로 작성
-- 각 파일의 기존 코드 스타일을 따를 것
-- 컴포넌트: PascalCase, 유틸 함수: camelCase
-- 들여쓰기 2칸, 세미콜론 사용
+```sh
+swift test --package-path macos/TodoListApp
+./script/build_and_run.sh --verify
+```
 
-## 하지 말아야 할 것
-- 새 프로덕션 의존성 추가 시 PR에서 먼저 논의 ([ASSUMPTION]으로 후보 명시)
-- console.log를 프로덕션 코드에 남기지 말 것
-- any 타입 사용 금지
-- .env 파일 커밋 금지
+실행은 `script/build_and_run.sh`를 사용합니다. 앱은 `dist/TodoList.app`에 생성합니다. 화면 변경은 실제 macOS 창에서 확인하고 미검증 항목을 `docs/swiftui-design-qa.md`에 남깁니다. Playwright는 참고 HTML에만 쓸 수 있으며 네이티브 UI 검증을 대체하지 않습니다.
 
-## 작업 완료 전 체크리스트
-- [ ] 해당 작업의 설계 문서의 내용을 임의로 생략하거나 간략화 한 부분이 있는지 확인 (shorcut 구현 방지)
-- [ ] 테스트 통과 (`pnpm test`)
-- [ ] 타입 체크 통과 (`pnpm typecheck`)
-- [ ] 린트 통과 (`pnpm lint`)
-- [ ] 사용자 흐름에 영향이 있으면 E2E 확인 (`pnpm test:e2e`)
-
-## PR 메시지 규칙
-- conventional commit 형식 사용 (feat:, fix:, refactor: 등)
-- 변경 이유와 영향 범위를 본문에 명시
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+삭제된 웹 프로젝트의 pnpm test/typecheck/lint/E2E 명령은 더 이상 적용하지 않습니다. 변경·삭제 목록, 검증 결과와 남은 한계를 기록하고 conventional commit 형식을 사용합니다.

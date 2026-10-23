@@ -1,15 +1,14 @@
-node_modules/
-.pnpm-store/
-.next/
-out/
-coverage/
-*.tsbuildinfo
-playwright-report/
-test-results/
-/.playwright-cli/
-/output/playwright/
-.firebase/
-firebase-debug.log
-firestore-debug.log
+# Native build products and machine metadata
+.DS_Store
+/dist/
+.build/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+
+# Local configuration and user data
 .env*
 !.env.example
+*.store
+*.store-shm
+*.store-wal

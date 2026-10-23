@@ -53,6 +53,7 @@ struct VisibleHoursPreference: Codable, Equatable, Sendable {
 
 struct AppPreferences: Codable, Equatable, Sendable {
     var version: Int
+    var appearance: String
     var weekStartsOn: Int
     var timeFormat: String
     var timeZone: String
@@ -66,6 +67,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
 
     static let defaults = AppPreferences(
         version: 1,
+        appearance: "system",
         weekStartsOn: 1,
         timeFormat: "24h",
         timeZone: "Asia/Seoul",
@@ -79,12 +81,13 @@ struct AppPreferences: Codable, Equatable, Sendable {
     )
 
     private enum CodingKeys: String, CodingKey {
-        case version, weekStartsOn, timeFormat, timeZone, colorTheme, taskCategories
+        case version, appearance, weekStartsOn, timeFormat, timeZone, colorTheme, taskCategories
         case calendarVisibility, visibleHours, taskOrders, reminderOffsets, remindersEnabled
     }
 
     init(
         version: Int = 1,
+        appearance: String = "system",
         weekStartsOn: Int = 1,
         timeFormat: String = "24h",
         timeZone: String = "Asia/Seoul",
@@ -97,6 +100,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
         remindersEnabled: Bool = false
     ) {
         self.version = version
+        self.appearance = appearance
         self.weekStartsOn = weekStartsOn
         self.timeFormat = timeFormat
         self.timeZone = timeZone
@@ -112,6 +116,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         version = try values.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        appearance = try values.decodeIfPresent(String.self, forKey: .appearance) ?? "system"
         weekStartsOn = try values.decodeIfPresent(Int.self, forKey: .weekStartsOn) ?? 1
         timeFormat = try values.decodeIfPresent(String.self, forKey: .timeFormat) ?? "24h"
         timeZone = try values.decodeIfPresent(String.self, forKey: .timeZone) ?? "Asia/Seoul"
@@ -151,7 +156,8 @@ final class PreferencesStore {
         defaults.set(try JSONEncoder().encode(envelope), forKey: storageKey)
     }
 
-    private static func validate(_ preferences: AppPreferences) throws {
+    static func validate(_ preferences: AppPreferences) throws {
+        guard ["system", "light", "dark"].contains(preferences.appearance) else { throw PreferencesStoreError.invalidValue("appearance") }
         guard preferences.weekStartsOn == 0 || preferences.weekStartsOn == 1 else { throw PreferencesStoreError.invalidValue("weekStartsOn") }
         guard ["12h", "24h"].contains(preferences.timeFormat) else { throw PreferencesStoreError.invalidValue("timeFormat") }
         guard preferences.timeZone.utf16.count <= 64, TimeZone(identifier: preferences.timeZone) != nil else { throw PreferencesStoreError.invalidValue("timeZone") }

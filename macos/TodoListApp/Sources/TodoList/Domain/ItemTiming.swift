@@ -5,6 +5,11 @@ enum ItemTiming: Hashable, Sendable, Codable {
     case date(startDate: String?, endDate: String, timeZone: String)
     case time(startAt: String?, endAt: String?, timeZone: String)
 
+    var isUnscheduled: Bool {
+        if case .unscheduled = self { return true }
+        return false
+    }
+
     private enum CodingKeys: String, CodingKey {
         case type, startDate, endDate, startAt, endAt, timeZone
     }

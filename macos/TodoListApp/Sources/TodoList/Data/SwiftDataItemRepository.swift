@@ -55,6 +55,35 @@ final class SwiftDataItemRepository: ItemRepository {
         }
     }
 
+    func upsertMany(_ items: [CalendarItem]) async throws {
+        var uniqueIDs = Set<String>()
+        for item in items {
+            try ItemValidator.validate(item)
+            guard uniqueIDs.insert(item.id).inserted else {
+                throw ItemValidationError.invalid(path: "items.id", reason: "Imported item identifiers must be unique.")
+            }
+        }
+
+        do {
+            for item in items {
+                let payload = try ItemCoding.encode(item)
+                if let record = try findStoredItem(id: item.id) {
+                    record.payload = payload
+                    record.kind = item.kind.rawValue
+                    record.title = item.title
+                    record.deletedAt = item.deletedAt
+                } else {
+                    store.context.insert(StoredItem(id: item.id, payload: payload, kind: item.kind.rawValue, title: item.title, deletedAt: item.deletedAt))
+                }
+            }
+            try store.save()
+        } catch {
+            store.context.rollback()
+            if let error = error as? ItemRepositoryError { throw error }
+            throw ItemRepositoryError.persistence(underlying: error)
+        }
+    }
+
     func delete(id: String) async throws {
         try await delete(id: id, pendingMutation: nil)
     }

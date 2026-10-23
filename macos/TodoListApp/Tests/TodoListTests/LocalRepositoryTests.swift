@@ -58,6 +58,24 @@ final class LocalRepositoryTests: XCTestCase {
         XCTAssertTrue(try repository.pendingOperations(ownerUID: "user-1").isEmpty)
     }
 
+    func testBatchImportRollsBackAllItemsOnStoreFailure() async throws {
+        let store = try LocalStore.inMemory()
+        let repository = SwiftDataItemRepository(store: store)
+        store.failNextSave = SimulatedSaveFailure()
+        let first = makeTask(title: "가져오기 첫 항목")
+        let second = CalendarItem(id: "task-2", kind: .task, title: "가져오기 두 번째", timing: .unscheduled, completion: .pending)
+
+        do {
+            try await repository.upsertMany([first, second])
+            XCTFail("The injected save failure should reject the whole batch.")
+        } catch ItemRepositoryError.persistence {
+            // A batch restore must never leave only part of an import behind.
+        }
+
+        let retainedItems = try await repository.listItems()
+        XCTAssertTrue(retainedItems.isEmpty)
+    }
+
     func testDuplicateIDUpdatesOneRecordAndCorruptPayloadIsReported() async throws {
         let store = try LocalStore.inMemory()
         let repository = SwiftDataItemRepository(store: store)

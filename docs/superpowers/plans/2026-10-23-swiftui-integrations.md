@@ -2,11 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Preserve local backup compatibility and add native reminders, Supabase Google OAuth, and offline-first account sync.
+**Goal:** Preserve local backup compatibility, Supabase Google OAuth, and offline-first account sync.
+
+> **Superseded notification scope:** On 2026-10-23 the user explicitly removed notifications from the product. Task 2 below is retired: no authorization UI, scheduling, reminder controls, or future notifications. The app only clears pending and delivered requests left by the previous native reminder implementation. Legacy reminder fields remain readable/writable in v1 JSON for backup compatibility and have no runtime effect.
 
 **Architecture:** Validate JSON before local transactions; use `supabase-swift` behind a remote repository adapter; keep mutations in a durable ordered outbox and expose conflicts to the UI.
 
-**Tech Stack:** Swift 6, SwiftUI, SwiftData, official `supabase-swift`, UserNotifications, Security/Keychain, XCTest.
+**Tech Stack:** Swift 6, SwiftUI, SwiftData, official `supabase-swift`, Security/Keychain, XCTest.
 
 **Spec:** `doc/superpowers/specs/2026-10-23-swiftui-macos-migration.md`
 
@@ -24,7 +26,6 @@
 - Importing foreign-owner account data must never enqueue writes under the current UID without explicit remap-and-sync action.
 - Duplicate/retried RPC operations must validate the receipt and remain idempotent.
 - A conflict or retryable network failure must persist across app restart and preserve the current local edit.
-- Denied notification permission must not erase the user's reminder schedule or report reminders as active.
 
 ---
 
@@ -50,22 +51,9 @@
 - [ ] Add `BackupCodecTests.testDecodesLocalAndAccountV1`, `testRejectsMalformedDuplicateAndOversizedBeforeWrite`, `testRemapsLinkedIDsForForeignAccountCopy`, and `testSameOwnerImportPreservesRevisionConflicts`.
 - [ ] Run `swift test --package-path macos/TodoListApp`; expected: all backup compatibility and rollback tests pass.
 
-### Task 2: Implement native local notifications
+### Task 2: Retired — native local notifications
 
-**Files:**
-- Create: `macos/TodoListApp/Sources/TodoList/Notifications/NotificationScheduler.swift`
-- Create: `macos/TodoListApp/Sources/TodoList/Features/Settings/NotificationPreferencesView.swift`
-- Modify: `macos/TodoListApp/Sources/TodoList/Features/Inspector/ItemInspectorView.swift`
-- Create: `macos/TodoListApp/Tests/TodoListTests/NotificationSchedulingTests.swift`
-
-**Interfaces:**
-- `protocol ReminderScheduling` exposes `requestAuthorization() async throws -> Bool`, `schedule(for:offset:) async throws`, and `cancel(itemID:) async`.
-- `UserNotificationScheduler` maps 0, 10, 30, 60, and 1440 minute offsets to native local notification requests and preserves event `countdown`/period `startCountdown` settings.
-
-- [ ] Implement authorization, schedule, reschedule, and cancellation for task/deadline/window reminders and existing event/period countdown settings.
-- [ ] Connect item reminder controls and global notification settings to the scheduler.
-- [ ] Add `NotificationSchedulingTests.testMapsSupportedLeadOffsets`, `testCompletionCancelsPendingRequest`, and `testDeniedAuthorizationPreservesPreference` using an injected scheduler client.
-- [ ] Run `swift test --package-path macos/TodoListApp`; expected: reminder state tests pass without requesting real OS authorization.
+No further implementation task. Notification authorization, settings, controls, and scheduling were removed at the user's request. `LegacyReminderCleanup` only removes pending and delivered requests previously created by this app; it never asks for permission or creates notifications. The legacy v1 JSON fields remain accepted for backup compatibility.
 
 ### Task 3: Add Supabase config and native Google OAuth
 
@@ -112,4 +100,4 @@
 - [ ] Add `SyncCoordinatorTests.testAppliedAndAlreadyAppliedReceiptsAreIdempotent`, `testNewerRemoteRevisionPersistsConflict`, and `testRetryableOutboxResumesAfterRestart` using a fake remote.
 - [ ] Run `swift test --package-path macos/TodoListApp`; expected: all sync state-transition tests pass.
 - [ ] When project configuration is available, verify Google sign-in, same-account read/write, Realtime refresh, and offline replay without modifying SQL or clearing remote data.
-- [ ] Commit the verified integration milestone as `feat: add native backup notifications and sync`.
+- [ ] Commit the verified integration milestone as `feat: add native backup and sync`.

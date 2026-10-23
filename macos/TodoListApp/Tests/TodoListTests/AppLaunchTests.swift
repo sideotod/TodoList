@@ -7,7 +7,7 @@ final class AppLaunchTests: XCTestCase {
         let model = AppModel(repository: InMemoryItemRepository())
         let rootView = RootView(model: model)
 
-        XCTAssertEqual(model.selectedSection, .today)
+        XCTAssertEqual(model.route, .today)
         _ = rootView.body
     }
 

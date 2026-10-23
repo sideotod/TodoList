@@ -87,7 +87,7 @@
 **Interfaces:**
 - `@MainActor protocol ItemRepository` exposes `listItems() async throws -> [CalendarItem]`, `item(id:) async throws -> CalendarItem?`, `upsert(_:) async throws`, and `delete(id:) async throws`.
 - `SwiftDataItemRepository` implements the protocol using a local SwiftData container; stored payloads remain Codable JSON data.
-- `PreferencesStore` loads/saves versioned preferences for week start, time format, time zone, accent, categories, calendar layers, visible hours, order, and reminder offsets.
+- `PreferencesStore` loads/saves versioned preferences for week start, time format, time zone, accent, categories, calendar layers, and visible hours/order. Legacy reminder keys are retained solely for persisted-preference and JSON compatibility.
 
 - [ ] Implement SwiftData models for records and persisted mutation metadata without changing remote schema.
 - [ ] Implement the repository transaction boundary so an item edit and any account-scoped pending operation are saved together; local-only edits remain local records.
