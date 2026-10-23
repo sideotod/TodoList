@@ -21,9 +21,16 @@
 
 .group li {
   display: flex;
-  min-height: 32px;
+  min-height: 42px;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
+}
+
+.itemCopy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
 }
 
 .title {
@@ -54,6 +61,19 @@
   color: var(--color-muted);
   font-size: var(--font-size-12);
   white-space: nowrap;
+}
+
+.date {
+  color: var(--color-secondary);
+  font-size: var(--font-size-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.badges {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .empty {

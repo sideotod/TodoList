@@ -1,25 +1,25 @@
 .page,
 .preview {
-  width: min(840px, calc(100% - 48px));
+  width: min(680px, calc(100% - 48px));
   min-height: 100%;
   margin-inline: auto;
-  padding: 56px 0 32px;
+  padding: 28px 0 24px;
 }
 
 .page h1,
 .preview h1 {
   margin: 0 0 14px;
   color: var(--color-foreground);
-  font-size: var(--font-size-22);
+  font-size: var(--font-size-20);
   font-weight: 600;
 }
 
 .identity {
   display: flex;
   min-width: 0;
-  min-height: 64px;
+  min-height: 54px;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   padding: 10px 14px;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-card-compact);
@@ -27,8 +27,8 @@
 
 .avatar {
   display: block;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   flex: none;
 }
 

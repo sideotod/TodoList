@@ -1,7 +1,7 @@
 # DESIGN.md - Todo
 
-> Visual single source of truth. Read in full before rendering anything for this brand.
-> Last updated: 2026-10-09
+> Brand summary. Current product/component rules are in the root DESIGN.md.
+> Last updated: 2026-10-10
 
 ## Identity
 
@@ -17,18 +17,17 @@
 
 | Role | Token | Value | Usage and source |
 |---|---|---|---|
-| Primary | `--color-primary` | `#000000` | Main structural mark and strongest emphasis; `src/styles/tokens.css`. |
-| Secondary | `--color-brand-secondary` | `rgba(0, 0, 0, 0.68)` | Secondary copy and controls; `src/styles/tokens.css`. |
-| Accent, default | `--color-accent` | `#0B756B` | Selected item, primary action, current date, focus, and progress; user-selected default and `src/styles/tokens.css`. |
-| Accent, amber | `--color-accent` | `#8A5200` | Optional user-selected theme; `src/styles/tokens.css`. |
-| Accent, sage | `--color-accent` | `#456B54` | Optional user-selected theme; `src/styles/tokens.css`. |
-| Background | `--color-background` | `#FFFFFF` | All main page backgrounds; user preference and `src/styles/tokens.css`. |
+| Primary | `--color-primary` | `#1D1D1F` | Main text and strongest emphasis; `src/styles/tokens.css`. |
+| Secondary | `--color-brand-secondary` | `rgba(29, 29, 31, 0.68)` | Secondary copy and controls; `src/styles/tokens.css`. |
+| Accent | `--color-accent` | `#0066CC` | Fixed Apple Blue for selected state, primary action, focus, and progress; chosen by the user and `src/styles/tokens.css`. |
+| Accent hover | `--color-accent-hover` | `#0055AA` | Hover state for accent controls; `src/styles/tokens.css`. |
+| Background | `--color-background` | `#FFFFFF` | Main application canvas; `src/styles/tokens.css`. |
 | Surface | `--color-surface` | `#FFFFFF` | Cards, dialogs, controls, and popovers; `src/styles/tokens.css`. |
-| Text | `--color-text` | `#000000` | Primary copy; user preference and `src/styles/tokens.css`. |
-| Muted text | `--color-muted` | `rgba(0, 0, 0, 0.56)` | Supporting labels; `src/styles/tokens.css`. |
-| Border | `--color-border` | `rgba(0, 0, 0, 0.13)` | Quiet separators and outlines; `src/styles/tokens.css`. |
+| Text | `--color-text` | `#1D1D1F` | Primary copy; `src/styles/tokens.css`. |
+| Muted text | `--color-muted` | `#6E6E73` | Supporting labels; `src/styles/tokens.css`. |
+| Border | `--color-border` | `rgba(29, 29, 31, 0.12)` | Quiet separators and outlines; `src/styles/tokens.css`. |
 
-Only the active accent changes between themes. Keep page and surface backgrounds white and primary text black. Accent tints may be mixed over white for selected surfaces, hover, and focus; do not tint whole pages or large containers.
+The interface accent is fixed Apple Blue; the color preference remains only as a compatibility field for existing saved preferences. Do not recolor category data when changing interface styling. Accent tints may be mixed over white for selected surfaces, hover, and focus; do not tint whole pages or large containers. The hex is the user's choice from the supplied reference, not a value prescribed by Apple HIG.
 
 ### Category and schedule-state colors
 
@@ -38,7 +37,7 @@ Progress phases have a separate, limited status palette from `src/styles/tokens.
 
 ## Typography
 
-- Family: `'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif`, from `src/styles/tokens.css`; no hosted font dependency.
+- Family: `system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Apple SD Gothic Neo', 'Malgun Gothic', Arial, sans-serif`, from `src/styles/tokens.css`; no hosted font dependency.
 - Headings: 500–650 weight, compact Korean sans-serif; use existing component sizes rather than adding an isolated display face.
 - Body and controls: 450–550 weight; keep labels readable at current product density.
 - Numeric UI: use tabular numerals for dates, times, counts, and progress values.
@@ -48,18 +47,19 @@ Progress phases have a separate, limited status palette from `src/styles/tokens.
 
 - Base unit: 4px.
 - Spacing scale: 4 / 8 / 12 / 16 / 24px, from `src/styles/tokens.css`.
-- Main frame: maximum width 1000px, from `src/features/shell/AppShell.module.css`.
-- Preserve the existing page hierarchy, calendar geometry, and task/event flows. Improve control alignment, spacing, responsive fit, and clear all-day/timed-event separation without moving major functional regions.
+- Main frame: maximum width 1000px, from `src/features/shell/AppShell.module.css`; design for a compact desktop window rather than a full-screen dashboard.
+- Reconsider page hierarchy and calendar geometry when evidence shows a scanning or completion problem. Preserve product meanings and task/event flows, not old page layout.
 
 ## Components
 
-- Cards and controls: white surface, black text, 1px black-opacity borders. Existing radius tokens are 8, 11, 10, 12, 14, 15, and 18px; use the component role's existing token.
-- Primary actions, focus rings, selected dates, active navigation, and progress fills use the active accent.
-- Dropdowns: white popover, restrained black outline and shadow, Figma SVG chevron/check icons, selected accent tint, keyboard navigation, and viewport-aware above/below placement.
+- Cards and controls: white surface, black text, 1px black-opacity borders. Use 8px controls, 10px compact cards, 12px popovers, and 14px dialogs from the current role tokens.
+- Primary actions, focus rings, selected dates, active navigation, and progress fills use Apple Blue.
+- Repeated controls share `src/styles/controls.module.css` typography, border, radius, focus, disabled, and hover rules. Popovers, menus, and dialogs share surface and behavior rules, but keep role-appropriate dimensions.
+- Dropdowns: white popover, restrained neutral outline and shadow, selected accent tint, keyboard navigation, and viewport-aware above/below placement.
 - Date/time popovers: anchor to their trigger, stay within the viewport, and align time selection to the center of the time input.
-- Schedule hierarchy: show timed events and multi-day schedules on calendar surfaces. Show daily tasks as `오늘의 할 일 n개`, not as events. Use compact category colors to distinguish calendar entries.
-- D-day cards: one entry per schedule; use phase colors for pre-start, imminent start, active, imminent end, and ended states.
-- Iconography: use supplied Figma SVG assets in `public/design/`; do not replace existing Figma icons with Unicode glyphs, CSS-drawn icons, or icon-font characters.
+- Home hierarchy: task-only month grid and tasks first in the selected day; event-only secondary agenda below tasks. Deadline/window records appear in D-day. Weekly calendar preserves all schedule meanings.
+- D-day cards: compact 72px home entries with title/countdown on one line; use phase colors for pre-start, imminent start, active, imminent end, and ended states.
+- Iconography: prefer existing, clear icon assets or labeled controls; do not use ambiguous Unicode glyphs.
 
 ## Logo
 

@@ -13,29 +13,33 @@ type PeriodProgressSummaryProps = {
   nowMs: number;
   onOpen?: (item: ItemView) => void;
   onAddSchedule?: () => void;
+  onViewAll?: () => void;
   orderIds?: readonly string[];
   onOrderChange?: (orderIds: string[]) => void;
 };
 
-export function PeriodProgressSummary({ items, nowMs, onAddSchedule, onOpen, orderIds = [], onOrderChange }: PeriodProgressSummaryProps) {
+export function PeriodProgressSummary({ items, nowMs, onAddSchedule, onViewAll, onOpen, orderIds = [], onOrderChange }: PeriodProgressSummaryProps) {
   const periods = orderPeriods(selectUrgentHomeTimeline(items, nowMs).filter((item) => getPeriodPhase(getTimingBounds(item.display.timing), nowMs) !== 'overdue'), orderIds);
   const primaryPeriods = periods.slice(0, 3);
   const periodIds = periods.map((item) => item.display.id);
 
   return (
     <section aria-label="임박한 일정" className={styles.summary}>
+      <div className={styles.summaryHeader}>
+        <h2>다가오는 일정</h2>
+        <div className={styles.headerActions}>
+          {onViewAll && <button aria-label="전체 D-day 보기" className={styles.viewAll} onClick={onViewAll} type="button">전체 D-day 보기</button>}
+        </div>
+      </div>
       {periods.length > 0 ? (
         <>
           <div className={styles.cardGrid} data-testid="period-card-grid">
-            {primaryPeriods.map((item) => <SortablePeriodCard item={item} itemIds={periodIds} key={item.display.id} nowMs={nowMs} onOpen={onOpen} onOrderChange={onOrderChange} />)}
+            {primaryPeriods.map((item) => <SortablePeriodCard home item={item} itemIds={periodIds} key={item.display.id} nowMs={nowMs} onOpen={onOpen} onOrderChange={onOrderChange} />)}
           </div>
         </>
       ) : (
         <div className={styles.emptyState}>
-          <div>
-            <h2>임박한 일정</h2>
-            <p>진행 중인 일정이 없습니다.</p>
-          </div>
+          <p>기억할 일정이 없습니다.</p>
           {onAddSchedule && <button onClick={onAddSchedule} type="button">일정을 추가해보세요</button>}
         </div>
       )}
@@ -43,10 +47,11 @@ export function PeriodProgressSummary({ items, nowMs, onAddSchedule, onOpen, ord
   );
 }
 
-function SortablePeriodCard({ item, itemIds, nowMs, onOpen, onOrderChange }: {
+function SortablePeriodCard({ item, itemIds, nowMs, home = false, onOpen, onOrderChange }: {
   item: ItemView;
   itemIds: readonly string[];
   nowMs: number;
+  home?: boolean;
   onOpen?: (item: ItemView) => void;
   onOrderChange?: (orderIds: string[]) => void;
 }) {
@@ -128,7 +133,7 @@ function SortablePeriodCard({ item, itemIds, nowMs, onOpen, onOrderChange }: {
 
   return (
     <div aria-keyshortcuts={onOrderChange ? 'ArrowUp ArrowDown' : undefined} aria-label={`${item.display.title}${onOrderChange ? ', 길게 눌러 이동하거나 위아래 화살표로 순서 변경' : ''}`} className={styles.sortableCard} data-dragging={dragging} data-drop-target={dropTarget} data-period-card-id={item.display.id} onClickCapture={suppressPostDragClick} onKeyDown={moveWithKeyboard} onPointerCancel={() => { clearHold(); setDragging(false); setDropTarget(false); }} onPointerDown={startHold} onPointerMove={moveHeld} onPointerUp={endHold} role="group" tabIndex={onOrderChange ? 0 : undefined}>
-      <PeriodCard item={item} nowMs={nowMs} onOpen={onOpen} />
+      <PeriodCard home={home} item={item} nowMs={nowMs} onOpen={onOpen} />
     </div>
   );
 }

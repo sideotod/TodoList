@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ItemView, ProposedCalendarItem } from '../../lib/repository';
+import { Icon } from '../ui/Icon';
 import styles from './ConflictResolutionDialog.module.css';
 
 type ResolutionAction = () => void | Promise<void>;
@@ -135,7 +136,7 @@ export function ConflictResolutionDialog({ item, onKeepRemote, onUseLocal, onRes
           <p className={styles.eyebrow}>동기화 충돌</p>
           <h2 id={headingId} ref={headingRef} tabIndex={-1}>어떤 내용을 유지할까요?</h2>
         </div>
-        <button type="button" className={styles.close} aria-label="충돌 해결 닫기" disabled={disabled} onClick={onClose}>×</button>
+        <button type="button" className={styles.close} aria-label="충돌 해결 닫기" disabled={disabled} onClick={onClose}><Icon name="close" /></button>
       </header>
       <div className={styles.body}>
         <p id={descriptionId} className={styles.description}>

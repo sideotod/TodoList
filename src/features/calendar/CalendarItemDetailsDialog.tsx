@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ItemView } from '../../domain/items';
 import { formatKoreanDate } from './calendar-dates';
 import { PeriodCard } from '../home/PeriodCard';
+import { getCountdownTargetLabel, getCountdownWindowLabel } from '../items/countdown-copy';
 import styles from './CalendarItemDetailsDialog.module.css';
 
 type CalendarItemDetailsDialogProps = {
@@ -27,6 +28,9 @@ export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onTogg
   const [countdownEnabled, setCountdownEnabled] = useState(initialCountdownEnabled);
   const [countdownSaving, setCountdownSaving] = useState(false);
   const [countdownError, setCountdownError] = useState('');
+  const [countdownStatus, setCountdownStatus] = useState('');
+  const countdownTarget = getCountdownTargetLabel(display.kind, display.kind === 'event' ? display.countdown?.reference : undefined, display.kind === 'deadline' || display.kind === 'window' ? display.focus : undefined);
+  const countdownDays = display.kind === 'event' ? display.countdown?.daysBefore ?? 1 : display.kind === 'window' || display.kind === 'deadline' ? display.startCountdown?.daysBefore ?? 1 : 1;
   const dateLabel = timing.type === 'date'
     ? timing.startDate && timing.startDate !== timing.endDate
       ? `${formatKoreanDate(timing.startDate, timing.timeZone)} – ${formatKoreanDate(timing.endDate, timing.timeZone)}`
@@ -51,10 +55,13 @@ export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onTogg
     setCountdownEnabled(next);
     setCountdownSaving(true);
     setCountdownError('');
+    setCountdownStatus('설정 저장 중…');
     try {
       await onToggleCountdown(item, next);
+      setCountdownStatus('설정을 저장했습니다.');
     } catch (failure) {
       setCountdownEnabled(previous);
+      setCountdownStatus('');
       setCountdownError(failure instanceof Error ? failure.message : '카운트다운 설정을 저장하지 못했습니다.');
     } finally {
       setCountdownSaving(false);
@@ -105,17 +112,16 @@ export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onTogg
           {display.kind !== 'task' && (
             <section aria-label="빠른 설정" className={styles.quickSettings}>
               <div className={styles.quickSettingCopy}>
-                <strong>카운트다운</strong>
-                <span>{display.kind === 'event'
-                  ? `${display.countdown?.reference === 'end' ? '종료' : '시작'} 기준 · ${display.countdown?.daysBefore ?? 1}일 전부터`
-                  : display.kind === 'deadline' && !display.startCountdown
+                <strong>남은 시간 표시</strong>
+                <span>{display.kind === 'deadline' && !display.startCountdown
                     ? '시작 날짜를 설정하면 사용할 수 있어요'
-                    : `시작 기준 · ${(display.kind === 'window' ? display.startCountdown.daysBefore : display.startCountdown?.daysBefore) ?? 1}일 전부터`}</span>
+                    : `${countdownTarget} 기준 · ${getCountdownWindowLabel(countdownDays)}`}</span>
               </div>
               <button aria-checked={countdownEnabled} aria-label="카운트다운" className={styles.quickSwitch} data-enabled={countdownEnabled} disabled={!onToggleCountdown || countdownSaving || display.kind === 'deadline' && !display.startCountdown} onClick={() => { void toggleCountdown(); }} role="switch" type="button">
                 <span aria-hidden="true" />
               </button>
               {countdownError && <p className={styles.quickError} role="alert">{countdownError}</p>}
+              {countdownStatus && <p className={styles.quickStatus} role="status">{countdownStatus}</p>}
             </section>
           )}
           {display.notes && <section className={styles.section}><h3>메모</h3><p>{display.notes}</p></section>}

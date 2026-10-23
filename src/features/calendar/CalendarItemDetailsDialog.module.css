@@ -1,27 +1,18 @@
 .overlay {
-  position: fixed;
-  z-index: 50;
-  inset: 0;
-  display: grid;
-  align-items: center;
-  justify-items: center;
-  padding: 20px;
-  background: var(--color-overlay);
-  backdrop-filter: blur(2px);
+  composes: overlay from '../../styles/controls.module.css';
 }
 
 .dialog {
+  display: flex;
+  flex-direction: column;
+  composes: dialog from '../../styles/controls.module.css';
   width: min(360px, 100%);
   max-height: calc(100svh - 40px);
-  overflow-y: auto;
   overflow: hidden;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-dialog);
-  background: var(--color-surface);
-  box-shadow: 0 20px 60px var(--color-overlay);
 }
 
 .footer {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -30,9 +21,20 @@
 }
 
 .body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: grid;
   gap: 0;
   padding: var(--space-4) var(--space-4) var(--space-5);
+}
+
+.quickStatus {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-secondary);
+  font-size: var(--text-caption);
+  line-height: 1.5;
 }
 
 .taskSummary {
@@ -111,7 +113,7 @@
   gap: 3px 16px;
   padding: 14px 0;
   border-top: var(--border-width) solid var(--color-border);
-  border-bottom: var(--border-width) solid var(--color-border);
+  border-bottom: 0;
   background: transparent;
 }
 
@@ -134,8 +136,8 @@
 
 .quickSwitch {
   position: relative;
-  width: 40px;
-  height: 24px;
+  width: var(--switch-width);
+  height: var(--switch-height);
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -150,10 +152,10 @@
 
 .quickSwitch span {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
+  top: 2px;
+  left: 2px;
+  width: var(--switch-thumb);
+  height: var(--switch-thumb);
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, .22);
@@ -161,7 +163,7 @@
 }
 
 .quickSwitch[data-enabled='true'] span {
-  transform: translateX(16px);
+  transform: translateX(var(--switch-travel));
 }
 
 .quickSwitch:focus-visible {
@@ -223,22 +225,13 @@
 .footer {
   justify-content: flex-end;
   padding-top: var(--space-3);
-  border-top: var(--border-width) solid var(--color-border);
+  border-top: 0;
 }
 
 .secondary,
 .primary {
   min-width: 72px;
-  min-height: 38px;
-  padding: 0 14px;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-card-compact);
-  background: var(--color-surface);
-  color: var(--color-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-12);
-  font-weight: 550;
+  min-height: 44px;
 }
 
 .primary {
@@ -257,3 +250,7 @@
   .overlay { align-items: end; padding: 0; }
   .dialog { width: 100%; max-height: 92svh; border-radius: 20px 20px 0 0; }
 }
+
+.secondary { composes: secondary from '../../styles/controls.module.css'; }
+
+.primary { composes: primary from '../../styles/controls.module.css'; }

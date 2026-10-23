@@ -38,12 +38,12 @@ export function ProfileRoute({ initialNowMs }: { initialNowMs: number }) {
 
   const preview = (
     <main className={styles.preview}>
-      <h1>사용자</h1>
+      <h1>설정</h1>
       <div className={styles.identity}>
         <Image alt="" className={styles.avatar} height={32} src="/design/user.svg" unoptimized width={32} />
         <div className={styles.identityCopy}>
-          <strong>{session.status === 'signed-in' ? session.displayName || '사용자' : '로컬 미리보기'}</strong>
-          <span>{session.status === 'signed-in' ? session.email : 'Supabase 계정 연결 전에는 데모 데이터만 사용합니다.'}</span>
+          <strong>{session.status === 'signed-in' ? session.displayName || '사용자' : '로컬 사용'}</strong>
+          <span>{session.status === 'signed-in' ? session.email : '일정과 설정은 이 브라우저에 저장되며 다른 기기와 동기화되지 않습니다.'}</span>
         </div>
         <span className={styles.value}>{session.status === 'signed-in' ? '로그인됨' : '이 기기'}</span>
       </div>
@@ -59,7 +59,7 @@ export function ProfileRoute({ initialNowMs }: { initialNowMs: number }) {
 
   const account = session.status === 'signed-in' ? (
     <main className={styles.page}>
-      <h1>사용자</h1>
+      <h1>설정</h1>
       <div className={styles.identity}>
         <Image alt="" className={styles.avatar} height={32} src="/design/user.svg" unoptimized width={32} />
         <div className={styles.identityCopy}>

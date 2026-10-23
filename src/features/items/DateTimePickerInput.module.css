@@ -1,10 +1,12 @@
 .control {
+  composes: input from '../../styles/controls.module.css';
+  padding: 0;
   box-sizing: border-box;
   position: relative;
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: 36px;
   align-items: center;
   border: var(--border-width) solid var(--color-control-outline);
   border-radius: var(--radius-control-large);
@@ -25,7 +27,7 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  min-height: 42px;
+  min-height: 34px;
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
   border: 0;
   border-radius: inherit;
@@ -33,7 +35,7 @@
   background: transparent;
   color: var(--color-foreground);
   font: inherit;
-  font-size: var(--font-size-14);
+  font-size: var(--text-body);
   font-variant-numeric: var(--font-numeric-style);
 }
 
@@ -44,9 +46,9 @@
 .trigger {
   box-sizing: border-box;
   display: grid;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
+  width: var(--control-height);
+  height: var(--control-height);
+  flex: 0 0 var(--control-height);
   place-items: center;
   margin-right: 2px;
   border: 0;
@@ -73,18 +75,14 @@
 }
 
 .popover {
-  box-sizing: border-box;
+  composes: popover from '../../styles/controls.module.css';
   position: fixed;
-  z-index: 120;
+  z-index: var(--layer-popover);
   width: 296px;
   max-width: calc(100vw - 24px);
   padding: 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-popover);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-popover);
   animation: appear 130ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
@@ -94,7 +92,7 @@
   align-items: center;
   justify-content: space-between;
   color: var(--color-text);
-  font-size: var(--font-size-14);
+  font-size: var(--text-body);
 }
 
 .monthButton {
@@ -225,7 +223,7 @@
   color: var(--color-secondary);
   cursor: pointer;
   font: inherit;
-  font-size: var(--font-size-14);
+  font-size: var(--text-body);
   font-variant-numeric: var(--font-numeric-style);
   scroll-snap-align: center;
 }

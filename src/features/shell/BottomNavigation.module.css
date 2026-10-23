@@ -1,6 +1,6 @@
 .nav {
   position: fixed;
-  z-index: 10;
+  z-index: var(--layer-navigation);
   bottom: max(26px, calc(50svh - 364px));
   left: 50%;
   display: flex;
@@ -12,11 +12,9 @@
   gap: var(--space-5);
   padding: var(--space-1) 14px;
   transform: translateX(-50%);
-  border: var(--border-width) solid var(--color-border);
+  border: var(--border-width) solid transparent;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  box-shadow: var(--shadow-navigation);
-  backdrop-filter: blur(14px);
+  background: transparent;
 }
 
 .indicator {

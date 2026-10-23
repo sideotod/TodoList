@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { Icon } from '../ui/Icon';
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import styles from './TopActionMenu.module.css';
 
@@ -66,9 +66,7 @@ export function TopActionMenu({ onAddTask, onAddEvent, onManageCategories, onSor
         ref={triggerRef}
         type="button"
       >
-        {placement === 'header'
-          ? <span aria-hidden="true" className={styles.addIcon} />
-          : <Image alt="" height={20} src="/design/figma-hamburger.svg" unoptimized width={20} />}
+        <Icon name={placement === 'header' ? 'plus' : 'menu'} size={20} />
       </button>
       {open && (
         <div aria-label="항목 추가 및 정렬" className={styles.menu} onKeyDown={moveMenuFocus} ref={menuRef} role="menu">

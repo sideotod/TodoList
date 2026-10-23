@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useLayoutEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import styles from './BottomNavigation.module.css';
+import { parseRouteDate } from '../../lib/route-date';
 
 type NavigationItem = {
   label: string;
@@ -21,6 +22,8 @@ const navigation: NavigationItem[] = [
 
 export function BottomNavigation({ preview = false }: { preview?: boolean }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const routeDate = parseRouteDate(searchParams.get('date'));
   const indicatorRef = useRef<HTMLSpanElement>(null);
   const previousRouteIndex = useRef<number | null>(null);
   const currentRoute = pathname === '/' ? '/' : pathname.replace(/\/+$/, '');
@@ -66,7 +69,11 @@ export function BottomNavigation({ preview = false }: { preview?: boolean }) {
       />
       {navigation.map((item) => {
         const active = currentRoute === item.route;
-        const href = preview ? `${item.href}${item.href.includes('?') ? '&' : '?'}preview=design` : item.href;
+        const params = new URLSearchParams();
+        if (preview) params.set('preview', 'design');
+        if (routeDate) params.set('date', routeDate);
+        const query = params.toString();
+        const href = query ? `${item.href}?${query}` : item.href;
         return (
           <Link
             aria-current={active ? 'page' : undefined}

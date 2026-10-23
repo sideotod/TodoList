@@ -3,10 +3,13 @@
 import { useRef, useState } from 'react';
 import type { DragEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react';
 import type { ItemView } from '../../domain/items';
-import { DEFAULT_TASK_CATEGORY, getTaskCategoryColor, type TaskCategory } from '../../domain/task-categories';
+import { DEFAULT_TASK_CATEGORY, getStableItemColor, getTaskCategoryColor, type TaskCategory } from '../../domain/task-categories';
+import { selectCalendarAgenda } from '../../domain/projections';
+import { getLocalDate } from '../../domain/time';
 import { formatCalendarHeading } from '../calendar/calendar-dates';
 import { orderDailyTasks, type TaskOrder } from './task-order';
 import { TaskRow } from './TaskRow';
+import { Icon } from '../ui/Icon';
 import styles from './SelectedDayTasks.module.css';
 
 type SelectedDayTasksProps = {
@@ -38,6 +41,8 @@ export function SelectedDayTasks({ items, categories = [], date, taskOrder, onAd
   const [categoryDragging, setCategoryDragging] = useState<string | null>(null);
   const [categoryDropTarget, setCategoryDropTarget] = useState<string | null>(null);
   const tasks = orderDailyTasks(items, date, taskOrder);
+  // C4: deadlines/windows are already in D-day; keep the secondary agenda limited to events.
+  const schedules = selectCalendarAgenda(items, date, 'Asia/Seoul').filter((item) => item.display.kind === 'event');
   const pending = tasks.filter((item) => item.display.kind === 'task' && item.display.completion === 'pending');
   const completed = tasks.filter((item) => item.display.kind === 'task' && item.display.completion === 'completed');
   const disabled = readOnly || !onAdd;
@@ -247,21 +252,82 @@ export function SelectedDayTasks({ items, categories = [], date, taskOrder, onAd
     tasks.filter((item) => item.display.kind === 'task' && (item.display.category?.trim() || DEFAULT_TASK_CATEGORY.name).toLocaleLowerCase('ko-KR') === category.name.toLocaleLowerCase('ko-KR')),
   ));
 
+  function renderSchedule(item: ItemView) {
+    const color = item.display.categoryColor
+      ? getTaskCategoryColor(item.display.categoryColor)
+      : item.display.category
+        ? getTaskCategoryColor(undefined)
+        : getStableItemColor(item.display.id);
+    return (
+      <li key={item.display.id}>
+        <button className={styles.scheduleRow} onClick={() => onOpen?.(item)} type="button">
+          <span aria-hidden="true" className={`${styles.scheduleMark} ${styles[`mark_${item.display.kind}`]}`} style={{ backgroundColor: color.color }} />
+          <span className={styles.scheduleCopy}>
+            <span className={styles.scheduleTitle}>{item.display.title}</span>
+            <span className={styles.scheduleMeta}>{formatScheduleMeta(item, date)}</span>
+          </span>
+        </button>
+      </li>
+    );
+  }
+
   return (
-    <section className={styles.section} aria-label="선택한 날짜의 할 일">
+    <section className={styles.section} aria-label="선택한 날짜의 일정과 할 일">
       <div className={styles.heading}>
         <h2>{formatCalendarHeading(date)}</h2>
-        <button aria-label="할 일 추가" className={styles.add} disabled={disabled} onClick={onAdd} title={disabled ? '항목 편집 연결 후 사용할 수 있습니다.' : undefined} type="button">
-          <span aria-hidden="true" className={styles.addIcon} />
-        </button>
+        <button aria-label="할 일 추가" className={styles.add} disabled={disabled} onClick={onAdd} type="button"><Icon name="plus" size={20} /></button>
       </div>
-      {categoryGroups.length > 0 ? (
-        <div className={styles.groups}>
-          {categoryGroups}
-        </div>
-      ) : <p className={styles.empty}>등록된 할 일이 없습니다.</p>}
+      <section aria-label="할 일" className={styles.taskSection}>
+        {tasks.length > 0 && categoryGroups.length > 0 ? (
+          <div className={styles.groups}>{categoryGroups}</div>
+        ) : <p className={styles.empty}>등록된 할 일이 없습니다.</p>}
+      </section>
+      {schedules.length > 0 && (
+        <section aria-label="일정" className={styles.agendaSection}>
+          <div className={styles.subheading}><h3>일정 <span className={styles.categoryCount}>{schedules.length}</span></h3></div>
+          <ul className={styles.scheduleList}>{schedules.map(renderSchedule)}</ul>
+        </section>
+      )}
     </section>
   );
+}
+
+function formatScheduleMeta(item: ItemView, selectedDate: string): string {
+  const timing = item.display.timing;
+  if (timing.type === 'unscheduled') return '날짜 미정';
+  if (timing.type === 'date') {
+    const start = timing.startDate ?? timing.endDate;
+    const end = timing.endDate;
+    const startText = formatShortDate(start);
+    const endText = formatShortDate(end);
+    if (item.display.kind === 'event' && start === end && start === selectedDate) return '종일';
+    if (item.display.kind === 'event' && start === end) return `종일 · ${startText}`;
+    if (item.display.kind === 'deadline') return `마감 · ${endText}`;
+    return start === end ? startText : `${startText}–${endText}`;
+  }
+  const start = timing.startAt;
+  const end = timing.endAt;
+  const startText = start ? formatShortInstant(start, timing.timeZone, selectedDate) : '';
+  const endText = end ? formatShortInstant(end, timing.timeZone, selectedDate) : '';
+  if (item.display.kind === 'deadline') return `마감 · ${endText || startText}`;
+  if (item.display.kind === 'window') return `기간 · ${startText || '시작 미정'}–${endText || '종료 미정'}`;
+  return endText ? `${startText}–${endText}` : startText;
+}
+
+function formatShortDate(value: string): string {
+  const [, month = '', day = ''] = value.split('-');
+  return `${Number(month)}.${Number(day)}`;
+}
+
+function formatShortInstant(value: string, timeZone: string, selectedDate: string): string {
+  const date = getLocalDate(Date.parse(value), timeZone);
+  const time = new Intl.DateTimeFormat('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone,
+  }).format(new Date(value));
+  return date === selectedDate ? time : `${formatShortDate(date)} ${time}`;
 }
 
 function orderCategories(categories: readonly TaskCategory[], order: readonly string[]): TaskCategory[] {

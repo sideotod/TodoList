@@ -41,7 +41,7 @@
   color: var(--color-foreground);
   cursor: pointer;
   font: inherit;
-  font-size: var(--font-size-10);
+  font-size: var(--text-caption);
   text-align: left;
 }
 
@@ -63,11 +63,12 @@
 .overlapDots small,
 .overlapTime {
   color: var(--color-secondary);
-  font-size: var(--font-size-9);
+  font-size: var(--text-caption);
   font-variant-numeric: var(--font-numeric-style);
 }
 
 .overlapList {
+  composes: popover from '../../styles/controls.module.css';
   position: absolute;
   z-index: 5;
   top: calc(100% + 4px);
@@ -79,10 +80,6 @@
   gap: 2px;
   visibility: hidden;
   padding: 6px;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: 9px;
-  background: var(--color-surface);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-shadow) 14%, transparent);
 }
 
 .overlapGroup:hover .overlapList,
@@ -102,7 +99,7 @@
   color: var(--color-foreground);
   cursor: pointer;
   font: inherit;
-  font-size: var(--font-size-10);
+  font-size: var(--text-caption);
   text-align: left;
 }
 
@@ -154,7 +151,7 @@
 .block span {
   flex-shrink: 0;
   color: var(--color-secondary);
-  font-size: var(--font-size-10);
+  font-size: var(--text-caption);
   font-variant-numeric: var(--font-numeric-style);
   line-height: 14px;
   white-space: nowrap;

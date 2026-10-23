@@ -1,7 +1,10 @@
 .section {
   position: relative;
+  display: grid;
   min-width: 0;
   width: 100%;
+  align-content: start;
+  gap: 12px;
 }
 
 .heading {
@@ -26,69 +29,122 @@
   white-space: nowrap;
 }
 
-.add {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--color-accent);
-  cursor: pointer;
-}
-
-.add:hover {
-  background: var(--color-accent-soft);
-}
-
-.add:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.add:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: 3px;
-}
-
-.addIcon {
-  position: relative;
-  display: block;
-  width: 16px;
-  height: 16px;
-  color: currentColor;
-}
-
-.addIcon::before,
-.addIcon::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border-radius: 1px;
-  background: currentColor;
-  content: '';
-  transform: translate(-50%, -50%);
-}
-
-.addIcon::before {
-  width: 15px;
-  height: 2px;
-}
-
-.addIcon::after {
-  width: 2px;
-  height: 15px;
-}
+.add { composes: iconButton from '../../styles/controls.module.css'; color: var(--color-accent); }
 
 .groups {
   display: grid;
-  max-width: 296px;
-  gap: 10px;
-  margin-top: 10px;
-  margin-left: 16px;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.agendaSection,
+.taskSection {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+}
+
+.agendaSection {
+  padding-top: 10px;
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.subheading {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.subheading h3 {
+  margin: 0;
+  color: var(--color-secondary);
+  font-size: var(--font-size-12);
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.scheduleList {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scheduleList li {
+  min-width: 0;
+}
+
+.scheduleRow {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-foreground);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.scheduleRow:hover {
+  background: var(--color-hover);
+}
+
+.scheduleRow:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.scheduleMark {
+  display: block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+}
+
+.mark_event {
+  border-radius: 2px;
+}
+
+.mark_deadline,
+.mark_window {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(.86);
+}
+
+.scheduleCopy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.scheduleTitle {
+  overflow: hidden;
+  color: var(--color-foreground);
+  font-size: var(--font-size-13);
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduleMeta {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--font-size-11);
+  font-variant-numeric: var(--font-numeric-style);
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .categoryGroup {
@@ -139,7 +195,7 @@
 
 .categoryCount {
   color: var(--color-muted);
-  font-size: var(--font-size-10);
+  font-size: var(--font-size-11);
   font-variant-numeric: var(--font-numeric-style);
   font-weight: 450;
 }
@@ -158,9 +214,9 @@
 }
 
 .empty {
-  margin: var(--space-4) 0;
+  margin: 6px 0 8px;
   color: var(--color-muted);
-  font-size: var(--font-size-11);
+  font-size: var(--font-size-12);
 }
 
 @media (max-width: 760px) {
@@ -180,4 +236,24 @@
     max-width: none;
   }
 
+}
+
+@media (min-width: 761px) and (max-height: 640px) {
+  .section { gap: 8px; }
+
+  .heading { min-height: 38px; }
+
+  .groups {
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  .categoryGroup { gap: 0; }
+
+  .categoryHeading { min-height: 20px; }
+
+  .list {
+    gap: 1px;
+    margin-top: 2px;
+  }
 }

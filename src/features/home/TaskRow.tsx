@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { Icon } from '../ui/Icon';
 import type { DragEventHandler, KeyboardEventHandler, MouseEventHandler, PointerEvent, PointerEventHandler } from 'react';
 import type { ItemView } from '../../domain/items';
 import styles from './TaskRow.module.css';
@@ -76,7 +76,7 @@ export function TaskRow({
         role="checkbox"
         type="button"
       >
-        {completed && <Image alt="" height={12} src="/design/check-mark.svg" unoptimized width={12} />}
+        {completed && <Icon name="check" size={14} />}
       </button>
       {onOpen ? (
         <button className={styles.title} onClick={() => onOpen(item)} type="button">{item.display.title}</button>

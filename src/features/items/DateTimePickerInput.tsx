@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Icon } from '../ui/Icon';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { isKoreanPublicHoliday } from '../calendar/korean-holidays';
 import { formatDateDisplay, parseDateDraft, parseTimeDraft } from './date-time-picker';
@@ -218,7 +219,7 @@ export function DateTimePickerInput({ kind, label, value, onChange, invalid = fa
         ref={triggerRef}
         type="button"
       >
-        {kind === 'date' ? <CalendarIcon /> : <ClockIcon />}
+        <Icon name={kind === 'date' ? 'calendar' : 'clock'} />
       </button>
       {activePicker}
     </div>
@@ -247,9 +248,9 @@ function DatePicker({ value, visibleMonth, onMonthChange, onPick }: {
   return (
     <>
       <header className={styles.calendarHeader}>
-        <button aria-label="이전 달" className={styles.monthButton} onClick={() => moveMonth(-1)} type="button">‹</button>
+        <button aria-label="이전 달" className={styles.monthButton} onClick={() => moveMonth(-1)} type="button"><Icon name="chevron-left" /></button>
         <strong>{year}년 {month}월</strong>
-        <button aria-label="다음 달" className={styles.monthButton} onClick={() => moveMonth(1)} type="button">›</button>
+        <button aria-label="다음 달" className={styles.monthButton} onClick={() => moveMonth(1)} type="button"><Icon name="chevron-right" /></button>
       </header>
       <div aria-hidden="true" className={styles.weekdays}>{['일', '월', '화', '수', '목', '금', '토'].map((day) => <span key={day}>{day}</span>)}</div>
       <div className={styles.days}>
@@ -340,12 +341,4 @@ function getInitialMonth(value: string) {
   if (parsed) return parsed.slice(0, 7);
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function CalendarIcon() {
-  return <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 20 20" width="18"><rect height="13" rx="2.2" stroke="currentColor" strokeWidth="1.5" width="14" x="3" y="5" /><path d="M6.5 3.5v3M13.5 3.5v3M3.5 8.5h13" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" /><path d="M6.5 11.5h2M10.5 11.5h2M6.5 14.5h2" stroke="currentColor" strokeLinecap="round" strokeWidth="1.3" /></svg>;
-}
-
-function ClockIcon() {
-  return <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 20 20" width="18"><circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" /><path d="M10 6v4.5l3 1.8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg>;
 }

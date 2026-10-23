@@ -6,6 +6,7 @@ import type { ItemKind, ItemView, ProposedCalendarItem } from '../../domain/item
 import { mergeTaskCategories, type TaskCategory } from '../../domain/task-categories';
 import { getLocalDate } from '../../domain/time';
 import { useRepository } from '../../lib/repository-context';
+import { updateRouteDate } from '../../lib/route-date';
 import { saveDesktopPreferences, useDesktopPreferences } from '../../lib/desktop-preferences';
 import { reorderTaskGroup, transitionTaskGroup, type TaskOrder } from './task-order';
 import { movePeriodId } from './period-sort';
@@ -15,7 +16,7 @@ import { SelectedDayTasks } from './SelectedDayTasks';
 import { MonthHeader } from './MonthHeader';
 import { TopActionMenu } from './TopActionMenu';
 import { PeriodSortDialog } from './PeriodSortDialog';
-import { getDateMonth } from '../calendar/calendar-dates';
+import { getDateMonth, moveToMonthDate } from '../calendar/calendar-dates';
 import { CalendarItemDetailsDialog } from '../calendar/CalendarItemDetailsDialog';
 import { ItemEditor } from '../items/ItemEditor';
 import { TaskCategoryEditor } from '../items/TaskCategoryEditor';
@@ -45,6 +46,7 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
   const [editorDefaultStartDate, setEditorDefaultStartDate] = useState(selectedToday);
   const [editorDefaultStartTime, setEditorDefaultStartTime] = useState('09:00');
   const [periodSortOpen, setPeriodSortOpen] = useState(false);
+  const [periodDialogView, setPeriodDialogView] = useState<'sort' | 'all'>('sort');
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
   const [periodOrder, setPeriodOrder] = useState<string[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
@@ -101,8 +103,16 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
 
   function selectDate(date: string) {
     setSelectedDate(date);
+    updateRouteDate(date);
     const dateMonth = getDateMonth(date);
     if (dateMonth !== month) setMonth(dateMonth);
+  }
+
+  function changeMonth(nextMonth: string) {
+    const nextDate = moveToMonthDate(selectedDate, nextMonth);
+    setMonth(nextMonth);
+    setSelectedDate(nextDate);
+    updateRouteDate(nextDate);
   }
 
   async function toggleTask(item: ItemView) {
@@ -271,15 +281,24 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
     }
   }
 
+  function openPeriodDialog(view: 'sort' | 'all') {
+    setPeriodDialogView(view);
+    setPeriodSortOpen(true);
+  }
+
   return (
-    <div className={styles.page}>
-      <TopActionMenu onAddTask={openNewTask} onAddEvent={openNewEvent} onSort={() => setPeriodSortOpen(true)} onManageCategories={() => setCategoryEditorOpen(true)} />
-      <PeriodProgressSummary items={displayItems} nowMs={nowMs} onAddSchedule={openNewEvent} onOpen={openDetails} orderIds={periodOrder} onOrderChange={persistPeriodOrder} />
+    <main className={styles.page}>
+      <div className={styles.homeHeaderActions}>
+        <TopActionMenu onAddTask={openNewTask} onAddEvent={openNewEvent} onSort={() => openPeriodDialog('sort')} onManageCategories={() => setCategoryEditorOpen(true)} />
+      </div>
+      <PeriodProgressSummary
+        items={displayItems} nowMs={nowMs} onAddSchedule={openNewEvent} onViewAll={() => openPeriodDialog('all')} onOpen={openDetails} orderIds={periodOrder} onOrderChange={persistPeriodOrder} />
       {actionError && <p className={styles.feedback} role="alert">{actionError}</p>}
       <div className={styles.workspace} data-testid="home-workspace">
         <section className={styles.calendarPanel}>
-          <MonthHeader items={displayItems} month={month} onChangeMonth={setMonth} timeZone={preferences.timeZone} />
+          <MonthHeader items={displayItems} month={month} onChangeMonth={changeMonth} timeZone={preferences.timeZone} />
           <MonthTaskGrid
+            categories={taskCategories}
             items={displayItems}
             month={month}
             onChangeMonth={setMonth}
@@ -363,6 +382,7 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
       )}
       {periodSortOpen && (
         <PeriodSortDialog
+          initialView={periodDialogView}
           items={displayItems}
           nowMs={nowMs}
           orderIds={periodOrder}
@@ -380,7 +400,7 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
           onSave={addTaskCategory}
         />
       )}
-    </div>
+    </main>
   );
 }
 

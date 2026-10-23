@@ -9,10 +9,12 @@ export function ChecklistEditor({
   value,
   onChange,
   disabled = false,
+  showHeading = true,
 }: {
   value: readonly PeriodChecklistItem[];
   onChange: (next: PeriodChecklistItem[]) => void;
   disabled?: boolean;
+  showHeading?: boolean;
 }) {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
@@ -38,8 +40,8 @@ export function ChecklistEditor({
   }
 
   return (
-    <section className={styles.section} aria-labelledby="checklist-title">
-      <h3 id="checklist-title">기간 중 할 일</h3>
+    <section className={styles.section} aria-label="기간 중 할 일">
+      {showHeading && <h3>기간 중 할 일</h3>}
       {value.length === 0 ? <p className={styles.empty}>아직 등록된 하위 할 일이 없습니다.</p> : (
         <ul className={styles.list}>
           {value.map((item) => (

@@ -36,11 +36,7 @@ export function isTaskCategoryColor(value: unknown): value is TaskCategoryColor 
 
 export function getTaskCategoryColor(color: TaskCategoryColor | undefined) {
   const paletteColor = TASK_CATEGORY_PALETTE.find((entry) => entry.id === color);
-  if (paletteColor) {
-    const index = getTaskCategoryColorIndex(paletteColor.id) + 1;
-    const themeColor = `var(--theme-item-${index})`;
-    return { ...paletteColor, color: `var(--theme-item-${index}-strong)`, soft: `color-mix(in srgb, ${themeColor} 48%, #ffffff)` };
-  }
+  if (paletteColor) return paletteColor;
   if (typeof color === 'string' && /^#[\da-f]{6}$/i.test(color)) {
     const normalizedColor = color.toUpperCase();
     return { id: normalizedColor, label: '사용자 지정', color: normalizedColor, soft: mixWithWhite(normalizedColor, .14) };
@@ -57,12 +53,13 @@ export function getTaskCategoryColorIndex(color: TaskCategoryColor | undefined):
 }
 
 export function getStableItemColor(id: string) {
-  const paletteIndex = getStableItemColorIndex(id) + 1;
+  const paletteIndex = getStableItemColorIndex(id);
+  const paletteColor = TASK_CATEGORY_PALETTE[paletteIndex];
   return {
-    id: `theme-${paletteIndex}`,
-    label: `테마 색상 ${paletteIndex}`,
-    color: `var(--theme-item-${paletteIndex}-strong)`,
-    soft: `color-mix(in srgb, var(--theme-item-${paletteIndex}) 48%, #ffffff)`,
+    id: `category-${paletteIndex + 1}`,
+    label: paletteColor.label,
+    color: paletteColor.color,
+    soft: paletteColor.soft,
   };
 }
 

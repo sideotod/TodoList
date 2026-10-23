@@ -1,26 +1,15 @@
 .overlay {
-  position: fixed;
-  z-index: 60;
-  inset: 0;
-  display: grid;
-  align-items: center;
-  justify-items: center;
-  padding: 20px;
-  background: var(--color-overlay);
-  backdrop-filter: blur(3px);
+  z-index: var(--layer-dialog-nested);
+  composes: overlay from '../../styles/controls.module.css';
 }
 
 .dialog {
-  box-sizing: border-box;
+  composes: dialog from '../../styles/controls.module.css';
   display: flex;
   width: min(420px, 100%);
   max-height: min(78svh, 560px);
   flex-direction: column;
   overflow: hidden;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-dialog);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-dialog);
   animation: reveal 160ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
@@ -95,8 +84,8 @@
 
 .switch input.toggleControl {
   position: absolute;
-  width: 38px;
-  height: 22px;
+  width: var(--switch-width);
+  height: var(--switch-height);
   flex: none;
   margin: 0 2px 0 0;
   opacity: 0;
@@ -105,17 +94,17 @@
 
 .switch input.toggleControl + span {
   position: relative;
-  min-height: 22px;
+  min-height: var(--switch-height);
   padding-left: 48px;
-  line-height: 22px;
+  line-height: var(--switch-height);
 }
 
 .switch input.toggleControl + span::before {
   position: absolute;
   top: 0;
   left: 0;
-  width: 38px;
-  height: 22px;
+  width: var(--switch-width);
+  height: var(--switch-height);
   border-radius: var(--radius-pill);
   background: var(--color-border-strong);
   content: '';
@@ -124,10 +113,10 @@
 
 .switch input.toggleControl + span::after {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
+  top: 2px;
+  left: 2px;
+  width: var(--switch-thumb);
+  height: var(--switch-thumb);
   border-radius: 50%;
   background: var(--color-surface);
   box-shadow: 0 1px 3px color-mix(in srgb, var(--color-shadow) 20%, transparent);
@@ -140,7 +129,7 @@
 }
 
 .switch input.toggleControl:checked + span::after {
-  transform: translateX(16px);
+  transform: translateX(var(--switch-travel));
 }
 
 .switch input.toggleControl:focus-visible + span::before {
@@ -341,8 +330,8 @@
 
 .countdownSwitch {
   position: relative;
-  width: 38px;
-  height: 22px;
+  width: var(--switch-width);
+  height: var(--switch-height);
   flex: none;
   border-radius: var(--radius-pill);
   background: var(--color-border-strong);
@@ -351,10 +340,10 @@
 
 .countdownSwitch::after {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
+  top: 2px;
+  left: 2px;
+  width: var(--switch-thumb);
+  height: var(--switch-thumb);
   border-radius: 50%;
   background: var(--color-surface);
   box-shadow: 0 1px 3px color-mix(in srgb, var(--color-shadow) 20%, transparent);
@@ -367,7 +356,7 @@
 }
 
 .countdownToggle input:checked + .countdownSwitch::after {
-  transform: translateX(16px);
+  transform: translateX(var(--switch-travel));
 }
 
 .countdownToggle input:focus-visible + .countdownSwitch {
@@ -384,16 +373,6 @@
 .cancel,
 .apply {
   min-width: 76px;
-  min-height: 38px;
-  padding: 0 14px;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-card-compact);
-  background: var(--color-surface);
-  color: var(--color-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-12);
-  font-weight: 550;
 }
 
 .apply {
@@ -421,3 +400,7 @@
   .switch input.toggleControl + span::before,
   .switch input.toggleControl + span::after { transition: none; }
 }
+
+.cancel { composes: secondary from '../../styles/controls.module.css'; }
+
+.apply { composes: primary from '../../styles/controls.module.css'; }

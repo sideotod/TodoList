@@ -11,7 +11,8 @@ export function TodoLogo({ loading = false }: { loading?: boolean }) {
       data-loading={loading}
       data-testid="todo-logo"
       height={887}
-      src="/todo-logo-separated.png"
+      loading="eager"
+      src="/todo-logo-transparent.png"
       width={1774}
     />
   );

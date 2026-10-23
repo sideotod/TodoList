@@ -33,6 +33,8 @@ export function AppShell({ children, previewContent, previewItems = [] }: AppShe
   const [resolvingConflict, setResolvingConflict] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
   const designPreview = useSyncExternalStore(subscribeToLocationChanges, isDesignPreview, () => false);
+  const localOnlyMode = config?.status === 'missing';
+  const useLocalWorkspace = designPreview || localOnlyMode;
   const localPreview = useLocalPreviewState(previewItems);
   const desktopPreferences = useDesktopPreferences();
   const conflicts = designPreview ? [] : items.filter((item) => item.syncState === 'conflict');
@@ -45,7 +47,7 @@ export function AppShell({ children, previewContent, previewItems = [] }: AppShe
   }, [desktopPreferences.colorTheme]);
 
   if (!designPreview && config === null) return <LoadingScreen />;
-  if (!designPreview && config?.status !== 'configured') {
+  if (!designPreview && config?.status === 'invalid') {
     return (
       <>
         <SupabaseSetupGuide />
@@ -53,18 +55,18 @@ export function AppShell({ children, previewContent, previewItems = [] }: AppShe
       </>
     );
   }
-  if (!designPreview && session.status === 'resolving') return <LoadingScreen />;
-  if (!designPreview && session.status === 'signed-out') return <SignInScreen />;
-  if (!designPreview && session.status === 'error') {
+  if (!useLocalWorkspace && session.status === 'resolving') return <LoadingScreen />;
+  if (!useLocalWorkspace && session.status === 'signed-out') return <SignInScreen />;
+  if (!useLocalWorkspace && session.status === 'error') {
     return <main className={styles.errorScreen} role="alert">로그인 상태를 불러오지 못했습니다. 페이지를 새로고침해 주세요.</main>;
   }
-  if (!designPreview && session.status === 'signed-in' && repository.phase !== 'ready') {
+  if (!useLocalWorkspace && session.status === 'signed-in' && repository.phase !== 'ready') {
     return repository.phase === 'error'
       ? <main className={styles.errorScreen} role="alert">{repository.error ?? '계정 저장소를 시작하지 못했습니다.'}</main>
       : <LoadingScreen label="기기 저장소와 일정을 불러오고 있습니다" />;
   }
 
-  const content = designPreview ? previewContent ?? <PreviewAccount /> : children;
+  const content = useLocalWorkspace ? previewContent ?? <PreviewAccount /> : children;
 
   async function resolveConflict(choice: 'keep-remote' | 'use-local' | 'restore-as-new') {
     if (!itemRepository || !activeConflict || resolvingConflict) return;
@@ -96,20 +98,22 @@ export function AppShell({ children, previewContent, previewItems = [] }: AppShe
   }
 
   return (
-    <div className={styles.frame} data-app-state={designPreview ? 'design-preview' : 'signed-in'} data-color-theme={desktopPreferences.colorTheme}>
-      {designPreview && (
+    <div className={styles.frame} data-app-state={designPreview ? 'design-preview' : localOnlyMode ? 'local-only' : 'signed-in'} data-color-theme={desktopPreferences.colorTheme}>
+      {useLocalWorkspace && (
         <div className={styles.previewBanner} role="status">
-          로컬 테스트 · 변경 내용은 이 브라우저에 저장되며 기기 간 동기화되지 않음
+          로컬 모드 · 변경 내용은 이 브라우저에 저장되며 기기 간 동기화되지 않음
         </div>
       )}
-      {!hideBrand && (
-        <Link aria-label="Todo 홈" className={styles.brand} href={designPreview ? '/?preview=design' : '/'}>
-          <TodoLogo />
-        </Link>
-      )}
-      <main className={styles.route} data-route={routeType} key={pathname}>
+      <div className={styles.route} data-route={routeType} key={pathname}>
+        {!hideBrand && (
+          <div className={styles.brandBar}>
+            <Link aria-label="Todo 홈" className={styles.brand} href={designPreview ? '/?preview=design' : '/'}>
+              <TodoLogo />
+            </Link>
+          </div>
+        )}
         {content}
-      </main>
+      </div>
       {conflicts.length > 0 && !activeConflict && (
         <button className={styles.conflictNotice} onClick={reopenConflict} type="button">
           충돌 {conflicts.length}건 확인
@@ -126,7 +130,7 @@ export function AppShell({ children, previewContent, previewItems = [] }: AppShe
           onUseLocal={() => resolveConflict('use-local')}
         />
       )}
-      {designPreview && <LocalReminderScheduler enabled={localPreview.remindersEnabled} items={localPreview.items} offsets={localPreview.reminderOffsets} />}
+      {useLocalWorkspace && <LocalReminderScheduler enabled={localPreview.remindersEnabled} items={localPreview.items} offsets={localPreview.reminderOffsets} />}
     </div>
   );
 }

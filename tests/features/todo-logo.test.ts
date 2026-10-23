@@ -17,9 +17,10 @@ describe('TodoLogo', () => {
     const markup = renderToStaticMarkup(createElement(TodoLogo));
 
     expect(markup).toContain('alt="TODO"');
-    expect(markup).toContain('src="/todo-logo-separated.png"');
+    expect(markup).toContain('src="/todo-logo-transparent.png"');
     expect(markup).toContain('width="1774"');
     expect(markup).toContain('height="887"');
+    expect(markup).toContain('loading="eager"');
     expect(markup.match(/<img\b/g)).toHaveLength(1);
     expect(markup).not.toContain('TODO</span>');
   });

@@ -4,6 +4,8 @@ import { useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { getTaskCategoryColor, TASK_CATEGORY_EXTRA_COLORS, TASK_CATEGORY_PALETTE, type TaskCategory, type TaskCategoryColor } from '../../domain/task-categories';
 import { DialogShell } from './DialogShell';
 import styles from './TaskCategoryEditor.module.css';
+import { Icon } from '../ui/Icon';
+import controls from '../../styles/controls.module.css';
 
 type TaskCategoryEditorProps = {
   categories: readonly TaskCategory[];
@@ -74,13 +76,13 @@ export function TaskCategoryEditor({ categories, onClose, onSave }: TaskCategory
           <button className={styles.addCategory} onClick={() => {
             setView('add');
             window.requestAnimationFrame(() => nameRef.current?.focus());
-          }} type="button"><span aria-hidden="true">＋</span>카테고리 추가</button>
+          }} type="button"><Icon name="plus" size={16} />카테고리 추가</button>
         </div>
       ) : (
         <>
           <label className={styles.field} htmlFor="task-category-name">
             <span>카테고리 이름</span>
-            <input id="task-category-name" maxLength={64} onChange={(event) => { setName(event.currentTarget.value); setError(''); setDirty(true); }} ref={nameRef} value={name} />
+            <input className={controls.input} id="task-category-name" maxLength={64} onChange={(event) => { setName(event.currentTarget.value); setError(''); setDirty(true); }} ref={nameRef} value={name} />
           </label>
           <fieldset className={styles.palette}>
             <legend>색상</legend>

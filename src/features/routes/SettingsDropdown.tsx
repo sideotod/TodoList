@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
-import Image from 'next/image';
+import { Icon } from '../ui/Icon';
 import { createPortal } from 'react-dom';
 import styles from './SettingsControl.module.css';
 
 export type SettingsDropdownOption = { value: string; label: string; color?: string; colors?: readonly string[] };
 
-export function SettingsDropdown({ ariaLabel, value, options, onChange, className, portal = false }: {
+export function SettingsDropdown({ ariaLabel, value, options, onChange, className, portal = true }: {
   ariaLabel: string;
   value: string | number;
   options: readonly SettingsDropdownOption[];
@@ -43,16 +43,17 @@ export function SettingsDropdown({ ariaLabel, value, options, onChange, classNam
     function placeMenu() {
       const bounds = triggerRef.current?.getBoundingClientRect();
       if (!bounds) return;
-      const menuHeight = Math.min(options.length * 40 + 10, 264);
+      const menuHeight = Math.min(options.length * 34 + 12, 264, window.innerHeight - 24);
+      const menuWidth = Math.min(Math.max(bounds.width, menuRef.current?.scrollWidth ?? 0), 280, window.innerWidth - 24);
       const shouldOpenAbove = window.innerHeight - bounds.bottom < menuHeight + 12;
       setOpensAbove(shouldOpenAbove);
       if (portal) {
         setPortalPosition({
-          left: Math.max(12, Math.min(bounds.left, window.innerWidth - bounds.width - 12)),
+          left: Math.max(12, Math.min(bounds.left, window.innerWidth - menuWidth - 12)),
           top: shouldOpenAbove
             ? Math.max(12, bounds.top - menuHeight - 6)
             : Math.min(bounds.bottom + 6, window.innerHeight - menuHeight - 12),
-          width: bounds.width,
+          width: menuWidth,
           maxHeight: Math.min(264, window.innerHeight - 24),
         });
       }
@@ -95,6 +96,24 @@ export function SettingsDropdown({ ariaLabel, value, options, onChange, classNam
       triggerRef.current?.focus();
     } else if (event.key === 'Tab') {
       setOpen(false);
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      // Portal options sit outside the form: continue from the trigger's logical position.
+      const dialog = trigger.closest<HTMLElement>('[role="dialog"], dialog');
+      const scope = dialog ?? document.body;
+      const controls = [...scope.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]')]
+        .filter((control) => control.tabIndex >= 0 && !control.closest('[inert]')
+          && !menuRef.current?.contains(control) && control.getClientRects().length > 0
+          && getComputedStyle(control).visibility !== 'hidden');
+      const index = controls.indexOf(trigger) + (event.shiftKey ? -1 : 1);
+      const next = dialog ? controls[(index + controls.length) % controls.length] : controls[index];
+      if (next) {
+        event.preventDefault();
+        event.stopPropagation();
+        next.focus();
+      } else {
+        trigger.focus();
+      }
     }
   }
 
@@ -127,7 +146,7 @@ export function SettingsDropdown({ ariaLabel, value, options, onChange, classNam
                 : option.color && <span aria-hidden="true" className={styles.dropdownSwatch} style={{ backgroundColor: option.color }} />}
               {option.label}
             </span>
-            {isSelected && <span aria-hidden="true" className={styles.dropdownCheck} />}
+            {isSelected && <Icon className={styles.dropdownCheck} name="check" size={16} />}
           </button>
         );
       })}
@@ -155,7 +174,7 @@ export function SettingsDropdown({ ariaLabel, value, options, onChange, classNam
             : selected?.color && <span aria-hidden="true" className={styles.dropdownSwatch} style={{ backgroundColor: selected.color }} />}
           {selected?.label ?? currentValue}
         </span>
-        <Image alt="" aria-hidden="true" className={styles.dropdownChevron} height={16} src="/design/figma-month-previous.svg" unoptimized width={16} />
+        <Icon className={styles.dropdownChevron} name="chevron-down" size={16} />
       </button>
       {portal && open && typeof document !== 'undefined' ? createPortal(menu, document.body) : menu}
     </div>

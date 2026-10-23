@@ -8,11 +8,11 @@ type DialogShellProps = {
   titleLabel?: string;
   subtitle?: string;
   children: ReactNode;
-  sidePanel?: ReactNode;
   footer: ReactNode | ((requestClose: () => void) => ReactNode);
   dirty: boolean;
-  expanded?: boolean;
   compact?: boolean;
+  wide?: boolean;
+  busy?: boolean;
   initialFocusRef: RefObject<HTMLInputElement | null>;
   returnFocusRef?: RefObject<HTMLElement | null>;
   onClose: () => void;
@@ -20,7 +20,7 @@ type DialogShellProps = {
   onChange: () => void;
 };
 
-export function DialogShell({ title, titleLabel, subtitle, children, sidePanel, footer, dirty, expanded = false, compact = false, initialFocusRef, returnFocusRef, onClose, onSubmit, onChange }: DialogShellProps) {
+export function DialogShell({ title, titleLabel, subtitle, children, footer, dirty, compact = false, wide = false, busy = false, initialFocusRef, returnFocusRef, onClose, onSubmit, onChange }: DialogShellProps) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const confirmRef = useRef<HTMLElement>(null);
   const [confirmationReturnFocus, setConfirmationReturnFocus] = useState<HTMLElement | null>(null);
@@ -40,6 +40,7 @@ export function DialogShell({ title, titleLabel, subtitle, children, sidePanel, 
   }, [confirmDiscard]);
 
   function requestClose() {
+    if (busy || confirmDiscard) return;
     if (dirty) {
       setConfirmationReturnFocus(document.activeElement instanceof HTMLElement ? document.activeElement : null);
       setConfirmDiscard(true);
@@ -112,8 +113,8 @@ export function DialogShell({ title, titleLabel, subtitle, children, sidePanel, 
 
   return (
     <div className={styles.overlay} onKeyDown={handleKeyDown} onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
-      <section aria-labelledby="item-editor-title" aria-modal="true" className={`${styles.dialog} ${expanded ? styles.dialogExpanded : ''} ${compact ? styles.dialogCompact : ''}`} data-dirty={dirty} data-expanded={expanded} onChange={onChange} role="dialog">
-        <form onSubmit={onSubmit}>
+      <section aria-busy={busy} aria-labelledby="item-editor-title" aria-modal="true" className={`${styles.dialog} ${compact ? styles.dialogCompact : ''} ${wide ? styles.dialogWide : ''}`} data-dirty={dirty} inert={confirmDiscard} onChange={onChange} role="dialog">
+        <form noValidate onSubmit={onSubmit}>
           <header className={styles.header}>
             <div>
               <h2 aria-label={titleLabel} id="item-editor-title">{title}</h2>
@@ -121,7 +122,6 @@ export function DialogShell({ title, titleLabel, subtitle, children, sidePanel, 
             </div>
           </header>
           <div className={styles.body}>{children}</div>
-          {sidePanel}
           {typeof footer === 'function' ? footer(requestClose) : footer}
         </form>
       </section>

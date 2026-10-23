@@ -18,7 +18,7 @@ export const DEFAULT_DESKTOP_PREFERENCES: DesktopPreferences = {
   weekStartsOn: 0,
   timeFormat: '24h',
   timeZone: 'Asia/Seoul',
-  colorTheme: 'arctic',
+  colorTheme: 'apple-blue',
   taskCategories: [],
 };
 

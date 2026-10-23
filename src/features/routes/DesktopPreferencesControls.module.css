@@ -2,7 +2,7 @@
 .error {
   margin: 6px 0 0;
   color: var(--color-secondary);
-  font-size: var(--font-size-9);
+  font-size: var(--text-caption);
 }
 
 .error {
@@ -17,7 +17,30 @@
   color: var(--color-secondary);
   cursor: pointer;
   font: inherit;
-  font-size: var(--font-size-9);
+  font-size: var(--text-caption);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.accentNote {
+  display: inline-flex;
+  min-height: 24px;
+  margin: var(--space-2) 0 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-secondary);
+  font-size: var(--font-size-11);
+  white-space: nowrap;
+}
+
+.accentNote strong {
+  color: var(--color-foreground);
+  font-weight: 500;
+}
+
+.accentSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-accent);
 }

@@ -1,8 +1,8 @@
 'use client';
 
 import { Temporal } from '@js-temporal/polyfill';
-import { useMemo } from 'react';
-import type { MouseEvent } from 'react';
+import { useMemo, useState } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import type { ItemView } from '../../domain/items';
 import { isItemDeleted } from '../../domain/projections';
 import { getWeeklyOccurrenceForDate } from '../../domain/recurrence';
@@ -32,6 +32,8 @@ export function WeekTimeGrid({ dates, today, items, timeZone, timeFormat, nowMs,
   const endMinute = visibleEndHour * 60;
   const pixelsPerMinute = PIXELS_PER_HOUR / 60;
   const canvasHeight = (visibleEndHour - visibleStartHour) * PIXELS_PER_HOUR;
+  const [keyboardStartMinutes, setKeyboardStartMinutes] = useState<Record<string, number>>({});
+  const [keyboardFocusedDate, setKeyboardFocusedDate] = useState<string | null>(null);
 
   const segments = useMemo(() => dates.map((date) => getSegmentsForDate(items, date, timeZone)), [dates, items, timeZone]);
   const groupedEvents = segments.map(groupOverlappingTimedEvents);
@@ -46,15 +48,31 @@ export function WeekTimeGrid({ dates, today, items, timeZone, timeFormat, nowMs,
     && currentTime.minute <= 40;
   const currentTimeLabel = formatClock(currentTime.hour, currentTime.minute, timeFormat);
 
-  function addFromPosition(date: string, event: MouseEvent<HTMLDivElement>) {
+  function addFromPosition(date: string, event: MouseEvent<HTMLButtonElement>) {
+    if (event.detail === 0) {
+      onAdd(date, formatMinute(keyboardStartMinutes[date] ?? startMinute));
+      return;
+    }
+
     const bounds = event.currentTarget.getBoundingClientRect();
     const minuteOffset = Math.max(0, Math.min(canvasHeight, event.clientY - bounds.top)) / pixelsPerMinute;
     const minute = Math.max(startMinute, Math.min(endMinute - 15, startMinute + Math.floor(minuteOffset / 15) * 15));
-    onAdd(date, `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
+    onAdd(date, formatMinute(minute));
+  }
+
+  function adjustKeyboardStartTime(date: string, event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    const amount = event.key === 'ArrowDown' ? 15 : -15;
+    const minute = keyboardStartMinutes[date] ?? startMinute;
+    const nextMinute = Math.max(startMinute, Math.min(endMinute - 15, minute + amount));
+    keepKeyboardTimeVisible(event.currentTarget, nextMinute, startMinute, pixelsPerMinute, canvasHeight);
+    if (nextMinute !== minute) setKeyboardStartMinutes((current) => ({ ...current, [date]: nextMinute }));
   }
 
   return (
     <section aria-label="시간 일정" className={styles.section}>
+      <span className={styles.visuallyHidden} id="week-calendar-add-instructions">포커스한 뒤 위·아래 화살표로 시작 시각을 15분씩 바꾸고 Enter 또는 Space로 일정을 추가하세요.</span>
       <div aria-hidden="true" className={styles.timeLabels} style={{ height: canvasHeight }}>
         {hours.map((hour) => <span data-edge={hour === visibleStartHour ? 'start' : hour === visibleEndHour ? 'end' : undefined} key={hour} style={{ top: (hour - visibleStartHour) * PIXELS_PER_HOUR }}>{formatHour(hour, timeFormat)}</span>)}
         {showCurrentTimeLabel && <span className={styles.currentTimeLabel} style={{ top: (currentMinute - startMinute) * pixelsPerMinute }}>{currentTimeLabel}</span>}
@@ -62,7 +80,28 @@ export function WeekTimeGrid({ dates, today, items, timeZone, timeFormat, nowMs,
       <div className={styles.columns}>
         {dates.map((date, dayIndex) => (
           <div className={styles.column} data-today={date === today} key={date}>
-            <div aria-label={`${date} 일정 추가`} className={styles.canvas} onClick={(event) => addFromPosition(date, event)} style={{ height: canvasHeight }}>
+            <div className={styles.canvas} style={{ height: canvasHeight }}>
+              {keyboardFocusedDate === date && (
+                <span
+                  aria-hidden="true"
+                  className={styles.keyboardTimeMarker}
+                  data-keyboard-time-marker=""
+                  style={{ top: getKeyboardMarkerPosition(keyboardStartMinutes[date] ?? startMinute, startMinute, pixelsPerMinute, canvasHeight) }}
+                >
+                  <strong>{formatClock(...splitMinute(keyboardStartMinutes[date] ?? startMinute), timeFormat)}</strong>
+                  <span>↑↓ 이동 · Enter 추가</span>
+                </span>
+              )}
+              <button
+                aria-describedby="week-calendar-add-instructions"
+                aria-label={`${date} ${formatClock(...splitMinute(keyboardStartMinutes[date] ?? startMinute), timeFormat)} 일정 추가`}
+                className={styles.canvasAddButton}
+                onClick={(event) => addFromPosition(date, event)}
+                onFocus={() => setKeyboardFocusedDate(date)}
+                onBlur={() => setKeyboardFocusedDate((focusedDate) => focusedDate === date ? null : focusedDate)}
+                onKeyDown={(event) => adjustKeyboardStartTime(date, event)}
+                type="button"
+              />
               {hours.slice(0, -1).map((hour) => <span aria-hidden="true" className={styles.hourLine} data-major={hour % 2 === 0} key={hour} style={{ top: (hour - visibleStartHour) * PIXELS_PER_HOUR }} />)}
               {date === today && showCurrentTime && <span aria-hidden="true" className={styles.currentTimeLine} style={{ top: (currentMinute - startMinute) * pixelsPerMinute }} />}
               {groupedEvents[dayIndex].map((group) => {
@@ -110,6 +149,28 @@ export function WeekTimeGrid({ dates, today, items, timeZone, timeFormat, nowMs,
   );
 }
 
+function keepKeyboardTimeVisible(button: HTMLButtonElement, minute: number, startMinute: number, pixelsPerMinute: number, canvasHeight: number) {
+  // Keep the selected marker visible while navigating the long grid in a compact window.
+  const scroller = button.closest<HTMLElement>('[aria-label="시간표 스크롤 영역"]');
+  const canvas = button.parentElement;
+  if (!scroller || !canvas) return;
+
+  const markerPosition = getKeyboardMarkerPosition(minute, startMinute, pixelsPerMinute, canvasHeight);
+  const markerY = canvas.getBoundingClientRect().top + markerPosition;
+  const viewport = scroller.getBoundingClientRect();
+  const inset = 20;
+  if (markerY < viewport.top + inset) {
+    scroller.scrollTop -= viewport.top + inset - markerY;
+  } else if (markerY > viewport.bottom - inset) {
+    scroller.scrollTop += markerY - (viewport.bottom - inset);
+  }
+}
+
+function getKeyboardMarkerPosition(minute: number, startMinute: number, pixelsPerMinute: number, canvasHeight: number): number {
+  const markerPadding = 18;
+  return Math.max(markerPadding, Math.min(canvasHeight - markerPadding, (minute - startMinute) * pixelsPerMinute));
+}
+
 function getSegmentsForDate(items: readonly ItemView[], date: string, timeZone: string): EventSegment[] {
   const dayStart = Temporal.PlainDate.from(date).toZonedDateTime(timeZone).toInstant();
   const dayEnd = Temporal.PlainDate.from(date).add({ days: 1 }).toZonedDateTime(timeZone).toInstant();
@@ -150,4 +211,12 @@ function formatHour(hour: number, format: '24h' | '12h'): string {
 function formatClock(hour: number, minute: number, format: '24h' | '12h'): string {
   if (format === '24h') return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
   return `${hour < 12 ? '오전' : '오후'} ${hour % 12 || 12}:${String(minute).padStart(2, '0')}`;
+}
+
+function formatMinute(value: number): string {
+  return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+}
+
+function splitMinute(value: number): [number, number] {
+  return [Math.floor(value / 60), value % 60];
 }

@@ -60,10 +60,10 @@ export function ItemTimingFields(props: ItemTimingFieldsProps) {
 
       {kind !== 'task' && !unscheduled && mode === 'date' && (
         <div className={styles.dateGrid}>
-          {startRequired && <div className={styles.field}><span>시작일</span><DateTimePickerInput kind="date" label="시작일" onChange={props.onStartDate} value={startDate} />{errors['timing.startDate'] && <span className={styles.fieldError}>{errors['timing.startDate']}</span>}</div>}
+          {startRequired && <div className={styles.field}><span>시작일</span><DateTimePickerInput invalid={Boolean(errors['timing.startDate'])} kind="date" label="시작일" onChange={props.onStartDate} value={startDate} />{errors['timing.startDate'] && <span className={styles.fieldError}>{errors['timing.startDate']}</span>}</div>}
           {(kind === 'event' || endRequired) && <div className={styles.field}>
             <span>종료일</span>
-            <DateTimePickerInput kind="date" label="종료일" onChange={props.onEndDate} value={endDate} />
+            <DateTimePickerInput invalid={Boolean(errors['timing.endDate'])} kind="date" label="종료일" onChange={props.onEndDate} value={endDate} />
             {errors['timing.endDate'] && <span className={styles.fieldError}>{errors['timing.endDate']}</span>}
           </div>}
         </div>
@@ -97,10 +97,10 @@ function TimeFields({ label, date, clock, timeZone, resolution, choice, error, o
     <fieldset className={styles.timeFields}>
       <legend>{label}</legend>
       <div className={styles.dateTimeRow}>
-        <div className={styles.field}><span className={styles.visuallyHidden}>{label} 날짜</span><DateTimePickerInput kind="date" label={`${label} 날짜`} onChange={(next) => { onDate(next); onChoice(null); }} value={date} /></div>
-        <div className={styles.field}><span className={styles.visuallyHidden}>{label} 시각</span><DateTimePickerInput kind="time" label={`${label} 시각`} onChange={(next) => { onClock(next); onChoice(null); }} value={clock} /></div>
+        <div className={styles.field}><span className={styles.visuallyHidden}>{label} 날짜</span><DateTimePickerInput invalid={Boolean(error)} kind="date" label={`${label} 날짜`} onChange={(next) => { onDate(next); onChoice(null); }} value={date} /></div>
+        <div className={styles.field}><span className={styles.visuallyHidden}>{label} 시각</span><DateTimePickerInput invalid={Boolean(error)} kind="time" label={`${label} 시각`} onChange={(next) => { onClock(next); onChoice(null); }} value={clock} /></div>
       </div>
-      {error && <p className={styles.fieldError}>{error}</p>}
+      {error && !(resolution?.status === 'invalid' && resolution.reason === 'nonexistent-time') && <p className={styles.fieldError}>{error}</p>}
       {resolution?.status === 'invalid' && resolution.reason === 'nonexistent-time' && <p className={styles.fieldError}>이 날짜에는 입력한 시각이 없습니다. 다른 시각을 선택해 주세요.</p>}
       {resolution?.status === 'ambiguous' && (
         <fieldset className={styles.foldChoices}>
@@ -125,7 +125,7 @@ export function TaskTimeInput({ endClock, endFold, endResolution, error, onEndCl
   return (
     <div className={`${styles.field} ${styles.taskClockField}`}>
       <DateTimePickerInput invalid={Boolean(error)} kind="time" label="마감 시각" onChange={onEndClock} value={endClock} />
-      {error && <span className={styles.fieldError}>{error}</span>}
+      {error && !(endResolution?.status === 'invalid' && endResolution.reason === 'nonexistent-time') && <span className={styles.fieldError}>{error}</span>}
       {endResolution?.status === 'invalid' && endResolution.reason === 'nonexistent-time' && <span className={styles.fieldError}>이 날짜에는 입력한 시각이 없습니다. 다른 시각을 선택해 주세요.</span>}
       {endResolution?.status === 'ambiguous' && (
         <fieldset className={styles.foldChoices}>

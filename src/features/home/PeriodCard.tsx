@@ -11,9 +11,10 @@ type PeriodCardProps = {
   onOpen?: (item: ItemView) => void;
   titleId?: string;
   expanded?: boolean;
+  home?: boolean;
 };
 
-export function PeriodCard({ item, nowMs, onOpen, titleId, expanded = false }: PeriodCardProps) {
+export function PeriodCard({ item, nowMs, onOpen, titleId, expanded = false, home = false }: PeriodCardProps) {
   const display = item.display;
   if (display.kind !== 'deadline' && display.kind !== 'window' && display.kind !== 'event') return null;
   const bounds = getTimingBounds(display.timing);
@@ -42,7 +43,7 @@ export function PeriodCard({ item, nowMs, onOpen, titleId, expanded = false }: P
   const trackClass = phase === 'scheduled' ? styles.scheduledTrack : phase === 'active' ? styles.activeTrack : styles.endedTrack;
 
   return (
-    <article aria-label={display.title} className={`${styles.card} ${phaseClass}${expanded ? ` ${styles.expanded}` : ''}`} data-expanded={expanded} data-period-phase={phase} data-period-state={state}>
+    <article aria-label={display.title} className={`${styles.card} ${phaseClass}${expanded ? ` ${styles.expanded}` : ''}`} data-expanded={expanded} data-home-card={home ? 'true' : undefined} data-period-phase={phase} data-period-state={state}>
       {onOpen && <button aria-label={display.title} className={styles.cardAction} onClick={() => onOpen(item)} type="button" />}
       <div className={styles.heading}>
         <h3 className={styles.title} id={titleId}>{display.title}</h3>

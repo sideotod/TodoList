@@ -5,17 +5,19 @@ import type { ItemView } from '../../domain/items';
 import { deriveChecklistStatus, selectPeriodGroups, selectUrgentHomeTimeline } from '../../domain/projections';
 import { movePeriodId, selectCompletedPeriods } from './period-sort';
 import { PeriodCard } from './PeriodCard';
+import { Icon } from '../ui/Icon';
 import styles from './PeriodSortDialog.module.css';
 
 type PeriodSortDialogProps = {
   items: readonly ItemView[];
   nowMs: number;
   orderIds: readonly string[];
+  initialView?: 'sort' | 'all';
   onClose: () => void;
   onSave: (orderIds: string[]) => void;
 };
 
-export function PeriodSortDialog({ items, nowMs, orderIds, onClose, onSave }: PeriodSortDialogProps) {
+export function PeriodSortDialog({ items, nowMs, orderIds, initialView = 'sort', onClose, onSave }: PeriodSortDialogProps) {
   const initialFocus = useRef<HTMLButtonElement>(null);
   const completedToggleRef = useRef<HTMLButtonElement>(null);
   const completedCloseRef = useRef<HTMLButtonElement>(null);
@@ -24,20 +26,18 @@ export function PeriodSortDialog({ items, nowMs, orderIds, onClose, onSave }: Pe
   const previousPositions = useRef<Map<string, number> | null>(null);
   const groups = selectPeriodGroups(items, nowMs);
   const completedOrEndedIds = new Set([...groups.completed, ...groups.overdue].map((item) => item.display.id));
-  const periods = selectUrgentHomeTimeline(items, nowMs).filter((item) => {
-    if (completedOrEndedIds.has(item.display.id)) return false;
-    if (item.display.kind === 'deadline' || item.display.kind === 'window') {
-      return deriveChecklistStatus(item.display.checklist).kind !== 'complete';
-    }
-    return true;
-  });
+  const upcomingTimeline = selectUrgentHomeTimeline(items, nowMs).filter((item) => !completedOrEndedIds.has(item.display.id));
+  // Checklist-complete periods belong in the completed pane, never in both columns.
+  const completedChecklistPeriods = upcomingTimeline.filter(isChecklistCompletePeriod);
+  const allUpcoming = upcomingTimeline.filter((item) => !isChecklistCompletePeriod(item));
+  const periods = allUpcoming;
   const rank = new Map(orderIds.map((id, index) => [id, index]));
   const defaultIds = [...periods].sort((a, b) => (rank.get(a.display.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.display.id) ?? Number.MAX_SAFE_INTEGER));
   const [ids, setIds] = useState(() => defaultIds.map((item) => item.display.id));
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
-  const [allPeriodsOpen, setAllPeriodsOpen] = useState(false);
+  const [allPeriodsOpen, setAllPeriodsOpen] = useState(initialView === 'all');
   const holdTimer = useRef<number | null>(null);
   const dragStarted = useRef(false);
   const pointerItemId = useRef<string | null>(null);
@@ -48,7 +48,10 @@ export function PeriodSortDialog({ items, nowMs, orderIds, onClose, onSave }: Pe
   const flipFrame = useRef<number | null>(null);
   const movedAfterHold = useRef(false);
   const byId = new Map(periods.map((item) => [item.display.id, item]));
-  const completedPeriods = selectCompletedPeriods(items, nowMs);
+  const completedPeriods = mergeItems(
+    selectCompletedPeriods(items, nowMs),
+    completedChecklistPeriods,
+  );
 
   useEffect(() => {
     const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -219,17 +222,29 @@ export function PeriodSortDialog({ items, nowMs, orderIds, onClose, onSave }: Pe
 
   return (
     <div className={styles.overlay} onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-describedby="period-sort-description" aria-labelledby="period-sort-title" aria-modal="true" className={styles.dialog} data-view={allPeriodsOpen ? 'all' : 'sort'} onKeyDown={trapFocus} role="dialog">
+      <section aria-describedby={allPeriodsOpen ? 'period-all-description' : 'period-sort-description'} aria-labelledby="period-sort-title" aria-modal="true" className={styles.dialog} data-view={allPeriodsOpen ? 'all' : 'sort'} onKeyDown={trapFocus} role="dialog">
         <header className={styles.header}>
-          <h2 id="period-sort-title">디데이 정렬</h2>
+          <h2 id="period-sort-title">{allPeriodsOpen ? '전체 D-day' : '디데이 정렬'}</h2>
           {!allPeriodsOpen && <span className={styles.badge}>상단 3개 표시</span>}
-          {!allPeriodsOpen && <button aria-label="전체 디데이 보기" className={styles.completedToggle} onClick={() => setAllPeriodsOpen(true)} ref={completedToggleRef} type="button">전체 디데이 ›</button>}
-          {allPeriodsOpen && <button aria-label="닫기" className={styles.allPeriodsClose} onClick={() => setAllPeriodsOpen(false)} ref={completedCloseRef} type="button">닫기</button>}
+          {!allPeriodsOpen && <button aria-label="전체 D-day 보기" className={styles.completedToggle} onClick={() => setAllPeriodsOpen(true)} ref={completedToggleRef} type="button">전체 D-day <Icon name="chevron-right" size={14} /></button>}
+          {allPeriodsOpen && <button aria-label="순서 편집" className={styles.allPeriodsClose} onClick={() => setAllPeriodsOpen(false)} ref={completedCloseRef} type="button">순서 편집</button>}
         </header>
         <div className={styles.body} data-view={allPeriodsOpen ? 'all' : 'sort'}>
-          <div className={styles.activePane}>
-            <p className={styles.description} id="period-sort-description">끌어서 순서를 바꾸세요.</p>
-            {ids.length > 0 ? (
+          <div className={styles.activePane} data-testid="active-periods-pane">
+            {allPeriodsOpen ? (
+              <>
+                <p className={styles.visuallyHidden} id="period-all-description">예정 및 진행 중인 D-day와 완료되었거나 종료된 항목을 확인합니다.</p>
+                <h3 className={styles.paneTitle}>예정 및 진행 중</h3>
+                {allUpcoming.length > 0 ? (
+                  <ol className={styles.allPeriodsList} data-testid="active-periods-list">
+                    {allUpcoming.map((item) => <li key={item.display.id}><PeriodCard item={item} nowMs={nowMs} /></li>)}
+                  </ol>
+                ) : <p className={styles.empty}>예정되거나 진행 중인 D-day가 없습니다.</p>}
+              </>
+            ) : (
+              <>
+                <p className={styles.description} id="period-sort-description">끌어서 순서를 바꾸세요.</p>
+                {ids.length > 0 ? (
               <ol className={styles.list} ref={listRef}>
                 {ids.map((id, index) => {
                   const item = byId.get(id);
@@ -256,8 +271,11 @@ export function PeriodSortDialog({ items, nowMs, orderIds, onClose, onSave }: Pe
             ) : (
               <p className={styles.empty}>정렬할 일정이 없습니다. 새 일정이나 기간 일정을 추가하면 여기서 순서를 바꿀 수 있어요.</p>
             )}
+              </>
+            )}
           </div>
-          <aside aria-hidden={!allPeriodsOpen} aria-label="완료 일정" className={styles.allPeriodsPane} data-open={allPeriodsOpen} inert={!allPeriodsOpen}>
+          <aside aria-hidden={!allPeriodsOpen} aria-label="완료 및 종료" className={styles.allPeriodsPane} data-open={allPeriodsOpen} inert={!allPeriodsOpen}>
+            <h3 className={styles.paneTitle}>완료 및 종료</h3>
             {completedPeriods.length > 0 ? (
               <ol className={styles.allPeriodsList} data-testid="all-periods-list">
                 {completedPeriods.map((item) => <li key={item.display.id}><PeriodCard item={item} nowMs={nowMs} /></li>)}
@@ -266,10 +284,25 @@ export function PeriodSortDialog({ items, nowMs, orderIds, onClose, onSave }: Pe
           </aside>
         </div>
         <footer className={styles.footer}>
-          <button className={styles.cancel} onClick={onClose} ref={initialFocus} type="button">취소</button>
-          <button className={styles.save} onClick={() => onSave(ids)} type="button">저장</button>
+          {allPeriodsOpen
+            ? <button className={styles.cancel} onClick={onClose} ref={initialFocus} type="button">닫기</button>
+            : <>
+              <button className={styles.cancel} onClick={onClose} ref={initialFocus} type="button">취소</button>
+              <button className={styles.save} onClick={() => onSave(ids)} type="button">저장</button>
+            </>}
         </footer>
       </section>
     </div>
   );
+}
+
+function mergeItems(...groups: readonly ItemView[][]): ItemView[] {
+  const byId = new Map<string, ItemView>();
+  for (const item of groups.flat()) byId.set(item.display.id, item);
+  return [...byId.values()];
+}
+
+function isChecklistCompletePeriod(item: ItemView): boolean {
+  return (item.display.kind === 'deadline' || item.display.kind === 'window')
+    && deriveChecklistStatus(item.display.checklist).kind === 'complete';
 }

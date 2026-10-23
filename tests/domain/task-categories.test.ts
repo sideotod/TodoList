@@ -55,9 +55,9 @@ describe('mergeTaskCategories', () => {
     expect(getTaskCategoryColor('#3B82F6').color).toBe('#3B82F6');
   });
 
-  it('resolves preset category colors from the active theme while keeping custom colors fixed', () => {
-    expect(getTaskCategoryColor('teal').color).toBe('var(--theme-item-1-strong)');
-    expect(getTaskCategoryColor('violet').color).toBe('var(--theme-item-4-strong)');
+  it('keeps category colors independent from the interface accent', () => {
+    expect(getTaskCategoryColor('teal').color).toBe('#0B756B');
+    expect(getTaskCategoryColor('violet').color).toBe('#7054A6');
     expect(getTaskCategoryColor('#3B82F6').color).toBe('#3B82F6');
   });
 });

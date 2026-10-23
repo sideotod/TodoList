@@ -25,17 +25,17 @@ Users plan by month and week, review a selected day's tasks, and track upcoming 
 ## Capabilities and Constraints
 
 - Create and edit daily tasks, timed calendar events, and period records with optional checklists.
-- View schedules in monthly and weekly calendars, home progress cards, and D-day sorting.
+- The home monthly grid shows task activity only. View schedules in the weekly calendar, home progress cards, D-day sorting, and the compact event-only agenda below daily tasks.
 - Events appear in progress cards and D-day sorting, not in the daily task list.
 - Keep existing period records available when simplifying new-item creation flows.
-- Calendar settings include week start, time display, time zone, visible hours, and a selectable accent palette.
+- Calendar settings include week start, time display, and time zone. The interface uses one fixed Apple Blue accent; task category colors remain independently selectable.
 - Use existing item persistence and synchronization flows; do not introduce a separate event storage path.
 
 ## Brand Commitments
 
 - Keep the product name Todo.
-- Use a white background and black text, with one selectable accent color at a time.
-- Default accent: teal `#0B756B`; other choices: amber and sage.
+- Use a restrained Apple-inspired system font stack, neutral surfaces, and one fixed interface accent: Apple Blue `#0066CC`.
+- Keep category colors attached to their task and schedule data; changing the interface accent must not recolor saved categories.
 - The interface and terminology remain Korean-first.
 
 ## Evidence on Hand

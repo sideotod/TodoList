@@ -3,17 +3,17 @@
   width: min(var(--app-content-width, 840px), calc(100% - 48px));
   min-height: 100%;
   margin-inline: auto;
-  padding: 110px 0 82px;
+  padding: 28px 0 12px;
 }
 
 .page[data-view='week'] {
   box-sizing: border-box;
   display: flex;
   height: 100%;
-  min-height: 100%;
+  min-height: 0;
   flex-direction: column;
   overflow: visible;
-  padding: 110px 0 82px;
+  padding: 28px 0 12px;
 }
 
 .weekViewport {
@@ -46,7 +46,8 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   flex-direction: column;
 }
 
@@ -94,15 +95,15 @@
   min-width: 0;
   height: 42px;
   align-items: start;
-  justify-items: start;
-  padding: 4px 0 4px 8px;
+  justify-items: center;
+  padding: 4px 0;
   border-left: var(--border-width) solid color-mix(in srgb, var(--color-border) 42%, transparent);
   color: var(--color-foreground);
   text-align: left;
 }
 
 .date strong {
-  font-size: var(--font-size-20);
+  font-size: var(--font-size-18);
   font-weight: 550;
   line-height: 32px;
 }
@@ -147,10 +148,10 @@
 .timeScroller {
   min-height: 0;
   flex: 1 1 auto;
-  max-height: min(620px, calc(100svh - 360px));
+  max-height: none;
   overflow: auto;
   padding-top: 10px;
-  padding-bottom: 70px;
+  padding-bottom: 16px;
   margin-top: 0;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -207,7 +208,7 @@
   }
 
   .page[data-view='week'] {
-    padding: 82px 0;
+    padding: 82px 0 24px;
   }
 
   .timeScroller {

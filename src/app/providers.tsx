@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Suspense } from 'react';
 import { AuthProvider } from '../auth/session';
 import { RepositorySessionProvider } from '../lib/repository-context';
 import { PersistentBottomNavigation } from '../features/shell/PersistentBottomNavigation';
@@ -11,7 +12,9 @@ export default function Providers({ children }: Readonly<{ children: ReactNode }
     <AuthProvider>
       <RepositorySessionProvider>
         {children}
-        <PersistentBottomNavigation />
+        <Suspense fallback={null}>
+          <PersistentBottomNavigation />
+        </Suspense>
         <PwaLifecycle />
       </RepositorySessionProvider>
     </AuthProvider>

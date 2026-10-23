@@ -3,8 +3,26 @@
   width: 100%;
 }
 
-.calendar[aria-label='월간 할 일'] {
-  height: 306px;
+@media (min-width: 761px) {
+  .calendar {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .days {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .week {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+}
+
+.calendar[aria-label='월간 일정 및 할 일'] {
   margin-top: 6px;
 }
 
@@ -62,7 +80,7 @@
   min-height: 26px;
   align-items: center;
   color: var(--color-secondary);
-  font-size: var(--font-size-10);
+  font-size: var(--font-size-12);
   text-align: center;
 }
 
@@ -143,7 +161,7 @@
 .dayNumber {
   position: relative;
   z-index: 1;
-  font-size: var(--font-size-11);
+  font-size: var(--font-size-13);
   line-height: 1;
 }
 
@@ -200,7 +218,7 @@
   overflow: hidden;
   max-width: 204px;
   color: var(--color-foreground);
-  font-size: var(--font-size-10);
+  font-size: var(--font-size-11);
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -208,15 +226,25 @@
 
 .dotDesktop {
   display: block;
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--color-accent);
 }
 
+.dot_event {
+  border-radius: 1px;
+}
+
+.dot_deadline,
+.dot_window {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(.82);
+}
+
 .dotOverflow {
   color: var(--color-muted);
-  font-size: var(--font-size-8);
+  font-size: var(--font-size-10);
   line-height: 1;
 }
 
@@ -225,6 +253,66 @@
   height: 3px;
   border-radius: 50%;
   background: var(--color-accent);
+}
+
+.legend {
+  display: flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 14px;
+  padding-top: 2px;
+  color: var(--color-muted);
+  font-size: var(--font-size-11);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legendMark {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-secondary);
+}
+
+.legendEvent {
+  border-radius: 1px;
+  background: var(--color-accent);
+}
+
+.legendPeriod {
+  border-radius: 1px;
+  background: var(--color-warning);
+  transform: rotate(45deg) scale(.82);
+}
+
+@media (min-width: 761px) and (max-height: 640px) {
+  .heading {
+    min-height: 34px;
+    margin-bottom: 6px;
+  }
+
+  .weekdays {
+    min-height: 22px;
+  }
+
+  .week {
+    min-height: 0;
+  }
+
+  .dateBadge,
+  .selectedFillDesktop {
+    width: 24px;
+    height: 24px;
+  }
+
+  .dateBadge { flex-basis: 24px; }
+
+  .day { gap: 1px; }
 }
 
 @media (max-width: 760px) {
@@ -282,6 +370,11 @@
 
   .dayNumber {
     font-size: var(--font-size-13);
+  }
+
+  .legend {
+    gap: 9px;
+    font-size: var(--font-size-9);
   }
 
   .dots {

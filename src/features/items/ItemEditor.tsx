@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { Temporal } from '@js-temporal/polyfill';
-import type { CalendarItem, Completion, ItemKind, ItemView, PeriodChecklistItem, ProposedCalendarItem, WeeklyRecurrence } from '../../domain/items';
+import type { Completion, ItemKind, ItemView, PeriodChecklistItem, ProposedCalendarItem, WeeklyRecurrence } from '../../domain/items';
 import { DEFAULT_TASK_CATEGORY, getCategoryColor, getTaskCategoryColor, getTaskCategoryColorIndex, getStableItemCategoryColor, TASK_CATEGORY_EXTRA_COLORS, type TaskCategory, type TaskCategoryColor } from '../../domain/task-categories';
 import { getColorTheme } from '../../domain/color-themes';
 import { isValidTimeZone, parseLocalDateTime } from '../../domain/time';
@@ -12,15 +12,16 @@ import type { ReminderOffset } from '../../lib/local-preview-store';
 import type { EventCountdown } from '../../domain/items';
 import { ChecklistEditor } from './ChecklistEditor';
 import { DailyTaskFields } from './DailyTaskFields';
-import { DeadlinePeriodFields } from './DeadlinePeriodFields';
 import { DialogShell } from './DialogShell';
 import { EditorSection } from './EditorSection';
-import { TaskTimeInput } from './ItemTimingFields';
+import { ItemTimingFields, TaskTimeInput } from './ItemTimingFields';
 import { EventFields } from './EventFields';
 import type { FoldChoice, TimingMode } from './item-editor-types';
-import { WindowPeriodFields } from './WindowPeriodFields';
+import { buildProposal, getEffectiveItemKind } from './item-editor-proposal';
+import { toProposedCalendarItem } from './draft-input';
+import { getCountdownTargetLabel, getCountdownWindowLabel } from './countdown-copy';
 import { LocalSaveStatus, type LocalSavePhase } from '../shell/LocalSaveStatus';
-import { ReminderSettings, TimeSettingsDialog } from './TimeSettingsDialog';
+import { ReminderSettings } from './TimeSettingsDialog';
 import styles from './ItemEditor.module.css';
 import { formatKoreanDate } from '../calendar/calendar-dates';
 import { SettingsDropdown } from '../routes/SettingsDropdown';
@@ -56,7 +57,7 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
   const [stableItemId] = useState(() => initialItem?.id ?? createId());
   const initialTiming = initialItem?.timing;
   const [mode, setMode] = useState<TimingMode>(initialTiming?.type === 'time' ? 'time' : initialTiming?.type === 'unscheduled' ? 'unscheduled' : initialTiming?.type === 'date' ? 'date' : kind === 'event' ? 'time' : defaultMode);
-  const [title, setTitle] = useState(initialItem?.title ?? (kind === 'event' ? '새 일정' : kind === 'task' ? '새 할 일' : ''));
+  const [title, setTitle] = useState(initialItem?.title ?? '');
   const [category, setCategory] = useState(kind === 'task' ? initialItem?.category?.trim() || DEFAULT_TASK_CATEGORY.name : initialItem?.category ?? '');
   const [categoryColor, setCategoryColor] = useState<TaskCategoryColor>(initialItem?.categoryColor
     ?? (kind === 'event' ? getStableItemCategoryColor(stableItemId) : getCategoryColor(kind === 'task' ? initialItem?.category?.trim() || DEFAULT_TASK_CATEGORY.name : initialItem?.category, undefined, taskCategories)));
@@ -82,15 +83,13 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
   const [repeatMode, setRepeatMode] = useState<'once' | 'weekly'>(initialRecurrence ? 'weekly' : 'once');
   const [repeatDays, setRepeatDays] = useState<number[]>(initialRecurrence?.daysOfWeek ?? [getWeekday(initialStartDate)]);
   const [hasEventEnd, setHasEventEnd] = useState(initialItem?.kind === 'event' && initialItem.timing.type === 'time' ? initialItem.timing.endAt !== null : true);
-  const [periodFocus, setPeriodFocus] = useState<'start' | 'deadline'>('deadline');
+  const [periodFocus, setPeriodFocus] = useState<'start' | 'deadline'>(initialItem && (initialItem.kind === 'window' || initialItem.kind === 'deadline') ? initialItem.focus ?? 'deadline' : 'deadline');
   const [unscheduled, setUnscheduled] = useState(initialTiming?.type === 'unscheduled' || (!initialItem && defaultMode === 'unscheduled'));
   const [completion, setCompletion] = useState<Completion>(initialItem && 'completion' in initialItem ? initialItem.completion ?? 'pending' : 'pending');
   const [checklist, setChecklist] = useState<PeriodChecklistItem[]>(initialItem && (initialItem.kind === 'deadline' || initialItem.kind === 'window') ? [...initialItem.checklist] : []);
-  const [countdownEnabled, setCountdownEnabled] = useState(initialItem?.kind === 'window' ? initialItem.startCountdown.enabled : initialItem?.kind === 'deadline' ? initialItem.startCountdown?.enabled ?? true : true);
-  const [daysBefore, setDaysBefore] = useState(initialItem?.kind === 'window' ? initialItem.startCountdown.daysBefore : initialItem?.kind === 'deadline' ? initialItem.startCountdown?.daysBefore ?? 1 : 1);
+  const [countdownEnabled, setCountdownEnabled] = useState(initialItem?.kind === 'event' ? initialItem.countdown?.enabled ?? false : initialItem?.kind === 'window' ? initialItem.startCountdown.enabled : initialItem?.kind === 'deadline' ? initialItem.startCountdown?.enabled ?? true : kind !== 'event');
+  const [daysBefore, setDaysBefore] = useState(initialItem?.kind === 'event' ? initialItem.countdown?.daysBefore ?? 1 : initialItem?.kind === 'window' ? initialItem.startCountdown.daysBefore : initialItem?.kind === 'deadline' ? initialItem.startCountdown?.daysBefore ?? 1 : 1);
   const [reminderOffset, setReminderOffset] = useState<ReminderOffset | null>(kind === 'event' ? null : initialReminderOffset);
-  const [eventCountdownEnabled, setEventCountdownEnabled] = useState(initialItem?.kind === 'event' ? initialItem.countdown?.enabled ?? false : false);
-  const [eventCountdownDaysBefore, setEventCountdownDaysBefore] = useState(initialItem?.kind === 'event' ? initialItem.countdown?.daysBefore ?? 1 : 1);
   const [eventCountdownReference, setEventCountdownReference] = useState<EventCountdown['reference']>(initialItem?.kind === 'event' ? initialItem.countdown?.reference ?? 'start' : 'start');
   const [showInProgressSummary, setShowInProgressSummary] = useState(initialItem?.kind === 'event' ? initialItem.showInProgressSummary ?? true : false);
   const [hasDeadlineStart, setHasDeadlineStart] = useState(initialItem?.kind === 'deadline' ? Boolean(initialTiming && initialTiming.type !== 'unscheduled' && (initialTiming.type === 'date' ? initialTiming.startDate : initialTiming.startAt)) : false);
@@ -102,30 +101,53 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
   const [savePhase, setSavePhase] = useState<LocalSavePhase>('idle');
   const [saveError, setSaveError] = useState('');
   const [dirty, setDirty] = useState(false);
-  const [timeSettingsOpen, setTimeSettingsOpen] = useState(false);
+  const [timingChanged, setTimingChanged] = useState(false);
+  const [categoryChanged, setCategoryChanged] = useState(false);
+  const [countdownChanged, setCountdownChanged] = useState(false);
+  const [displayChanged, setDisplayChanged] = useState(false);
   const [showEventExtraColors, setShowEventExtraColors] = useState(false);
   const readOnly = initial?.syncState === 'offline-read-only';
 
   const startResolution = useMemo(() => mode === 'time' && startDate && startClock ? parseLocalDateTime(startDate, startClock, timeZone) : null, [mode, startDate, startClock, timeZone]);
   const endResolution = useMemo(() => mode === 'time' && endDate && endClock ? parseLocalDateTime(endDate, endClock, timeZone) : null, [mode, endDate, endClock, timeZone]);
   const isMultiDayEvent = kind === 'event' && Boolean(startDate && endDate && startDate !== endDate);
-  const eventEndRequired = hasEventEnd || isMultiDayEvent;
-  const startRequired = kind === 'event' || kind === 'window' || (kind === 'deadline' && hasDeadlineStart);
-  const endRequired = kind === 'event' ? eventEndRequired : kind === 'task' || kind === 'deadline';
+  const invalidWeeklyRange = kind === 'event' && repeatMode === 'weekly' && isMultiDayEvent;
+  const effectiveKind = getEffectiveItemKind(initialItem?.kind ?? null, kind, isMultiDayEvent && !invalidWeeklyRange, periodFocus);
+  const newPeriod = !initialItem && kind === 'event' && effectiveKind !== 'event';
+  const period = effectiveKind === 'window' || effectiveKind === 'deadline';
+  const effectiveFocus = newPeriod ? periodFocus : initialItem && (initialItem.kind === 'window' || initialItem.kind === 'deadline') ? initialItem.focus : undefined;
   const canBeUnscheduled = kind === 'task';
+  const countdownTarget = getCountdownTargetLabel(effectiveKind, hasEventEnd ? eventCountdownReference : 'start', effectiveFocus);
+  const countdownAvailable = effectiveKind !== 'deadline' || newPeriod || hasDeadlineStart;
+
+  useEffect(() => {
+    if (!Object.keys(errors).length) return;
+    const firstError = document.querySelector<HTMLElement>('[role="dialog"] [aria-invalid="true"], [role="dialog"] [data-invalid="true"]');
+    firstError?.focus();
+  }, [errors]);
+
+  function changeTiming(update: () => void) {
+    update();
+    setTimingChanged(true);
+    setDirty(true);
+  }
+
+  function changeCountdown(update: () => void) {
+    update();
+    setCountdownChanged(true);
+    setDirty(true);
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
     setSaveError('');
     setSavePhase('idle');
     const nextErrors: Record<string, string> = {};
     if (!title.trim()) nextErrors.title = '제목을 입력해 주세요.';
     if (title.length > 200) nextErrors.title = '제목은 200자 이내로 입력해 주세요.';
     if (notes.length > 10_000) nextErrors.notes = '메모는 10,000자 이내로 입력해 주세요.';
-    if (countdownEnabled && (kind === 'window' || kind === 'deadline' && hasDeadlineStart) && (daysBefore < 0 || daysBefore > 30 || !Number.isInteger(daysBefore))) nextErrors.daysBefore = '0일에서 30일 사이의 정수를 입력해 주세요.';
-    if (eventCountdownEnabled && (eventCountdownDaysBefore < 0 || eventCountdownDaysBefore > 30 || !Number.isInteger(eventCountdownDaysBefore))) {
-      nextErrors.eventCountdownDaysBefore = '0일에서 30일 사이의 정수를 입력해 주세요.';
-    }
+    if (kind !== 'task' && countdownAvailable && (daysBefore < 0 || daysBefore > 30 || !Number.isInteger(daysBefore))) nextErrors.daysBefore = '0일에서 30일 사이의 정수를 입력해 주세요.';
     if (kind === 'event' && repeatMode === 'weekly' && isMultiDayEvent) {
       nextErrors.recurrence = '매주 반복 일정은 하루 안에 끝나야 합니다.';
     }
@@ -135,23 +157,22 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
 
     let proposal: ProposedCalendarItem | null = null;
     try {
-      const proposalKind = kind === 'event' && isMultiDayEvent
-        ? periodFocus === 'start' ? 'window' : 'deadline'
-        : kind;
+      const proposalKind = effectiveKind;
       const recurrence: WeeklyRecurrence | undefined = kind === 'event' && repeatMode === 'weekly'
         ? { frequency: 'weekly', daysOfWeek: repeatDays, untilDate: initialRecurrence?.untilDate ?? null }
         : undefined;
       proposal = buildProposal({
+        initial: initialItem, timingChanged, categoryChanged, countdownChanged, displayChanged,
         id: initialItem?.id ?? stableItemId, kind: proposalKind, title: title.trim(), category, categoryColor, notes, sourceUrl,
         mode: unscheduled && canBeUnscheduled ? 'unscheduled' : mode, timeZone,
         startDate, endDate, startClock, endClock, startResolution, endResolution,
-        startFold, endFold, startRequired, endRequired: endRequired || isMultiDayEvent,
-        hasDeadlineStart: kind === 'event' && isMultiDayEvent ? true : hasDeadlineStart,
-        hasWindowEnd: kind === 'event' && isMultiDayEvent ? true : hasWindowEnd,
-        hasEventEnd, recurrence, focus: kind === 'event' && isMultiDayEvent ? periodFocus : undefined, completion, checklist,
+        startFold, endFold,
+        hasDeadlineStart: newPeriod ? true : hasDeadlineStart,
+        hasWindowEnd: newPeriod ? true : hasWindowEnd,
+        hasEventEnd: hasEventEnd || isMultiDayEvent, recurrence, focus: effectiveFocus, completion, checklist,
         includeEventColor: kind === 'event',
         showInProgressSummary,
-        countdownEnabled, daysBefore, eventCountdownEnabled, eventCountdownDaysBefore,
+        countdownEnabled, daysBefore,
         eventCountdownReference: hasEventEnd ? eventCountdownReference : 'start',
         onFieldError(path, message) { nextErrors[path] = message; },
       });
@@ -161,7 +182,10 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
     if (proposal) {
       const checked = validateProposedItem(proposal);
       if (!checked.valid) {
-        for (const issue of checked.issues) nextErrors[issue.path] ??= issue.message;
+        for (const issue of checked.issues) {
+          const path = issue.path.endsWith('.daysBefore') ? 'daysBefore' : issue.path.startsWith('recurrence') ? 'recurrence' : issue.path;
+          nextErrors[path] ??= issue.message;
+        }
       } else proposal = checked.value;
     }
     if (Object.keys(nextErrors).length > 0 || !proposal) {
@@ -181,8 +205,8 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
     setSavePhase('saving');
     try {
       if (onLocalSave) {
-        const taskReminder = kind === 'task' && (mode !== 'time' || unscheduled) ? null : reminderOffset;
-        await onLocalSave(proposal, kind === 'event' || proposal.timing.type === 'unscheduled' ? null : taskReminder);
+        const taskReminder = effectiveKind === 'task' && (mode !== 'time' || unscheduled) ? null : reminderOffset;
+        await onLocalSave(proposal, effectiveKind === 'event' || proposal.timing.type === 'unscheduled' ? null : taskReminder);
         setSavePhase('saved');
         onSaved?.(proposal);
         onClose();
@@ -190,7 +214,7 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
       }
       const existingDraft = initial?.localDraft;
       const canonical = initial?.canonical;
-      const baseSnapshot = existingDraft ? existingDraft.baseSnapshot : canonical ? toProposal(canonical) : null;
+      const baseSnapshot = existingDraft ? existingDraft.baseSnapshot : canonical ? toProposedCalendarItem(canonical) : null;
       const baseRevision = existingDraft ? existingDraft.baseRevision : canonical?.revision ?? null;
       if (!activeRepository) return;
       const result = await activeRepository.saveDraft({
@@ -222,26 +246,16 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
   }
 
   const timingProps = {
-    mode,
-    unscheduled: unscheduled && canBeUnscheduled,
-    startDate,
-    endDate,
-    startClock,
-    endClock,
-    timeZone,
-    startResolution,
-    endResolution,
-    startFold,
-    endFold,
-    errors,
-    onMode: setMode,
-    onUnscheduled: setUnscheduled,
-    onStartDate: setStartDate,
-    onEndDate: setEndDate,
-    onStartClock: setStartClock,
-    onEndClock: setEndClock,
-    onStartFold: setStartFold,
-    onEndFold: setEndFold,
+    mode, unscheduled: unscheduled && canBeUnscheduled, startDate, endDate, startClock, endClock, timeZone,
+    startResolution, endResolution, startFold, endFold, errors,
+    onMode: (value: 'date' | 'time') => changeTiming(() => setMode(value)),
+    onUnscheduled: (value: boolean) => changeTiming(() => setUnscheduled(value)),
+    onStartDate: (value: string) => changeTiming(() => { setStartDate(value); setStartFold(null); }),
+    onEndDate: (value: string) => changeTiming(() => { setEndDate(value); setEndFold(null); }),
+    onStartClock: (value: string) => changeTiming(() => { setStartClock(value); setStartFold(null); }),
+    onEndClock: (value: string) => changeTiming(() => { setEndClock(value); setEndFold(null); }),
+    onStartFold: (value: FoldChoice) => changeTiming(() => setStartFold(value)),
+    onEndFold: (value: FoldChoice) => changeTiming(() => setEndFold(value)),
   };
   const dateLabel = (date: string) => date ? formatKoreanDate(date, isValidTimeZone(timeZone) ? timeZone : DEFAULT_ZONE) : '날짜를 선택해 주세요';
   const categoryOptions = taskCategories.some((entry) => entry.name.toLocaleLowerCase('ko-KR') === DEFAULT_TASK_CATEGORY.name)
@@ -252,131 +266,21 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
     label: entry.name === DEFAULT_TASK_CATEGORY.name ? '기본 카테고리' : entry.name,
     color: getTaskCategoryColor(entry.color).color,
   }));
-  const timeSettingsSummary = kind === 'task'
-    ? unscheduled ? '날짜를 지정해 주세요' : mode === 'time' ? `${dateLabel(endDate)} · ${endClock}` : `${dateLabel(endDate)} · 시각 없음`
-    : kind === 'deadline'
-      ? `${hasDeadlineStart ? `${dateLabel(startDate)}${mode === 'time' ? ` ${startClock}` : ''}` : '시작일 생략'} – 마감 ${dateLabel(endDate)}${mode === 'time' ? ` ${endClock}` : ''}`
-      : kind === 'window'
-        ? mode === 'time'
-          ? `${dateLabel(startDate)} ${startClock} · ${hasWindowEnd ? `종료 ${dateLabel(endDate)} ${endClock}` : '종료 시각 없음'}`
-          : `${dateLabel(startDate)} – ${dateLabel(endDate)}`
-        : `${repeatMode === 'weekly' ? `매주 ${getWeekdayOrder().filter((day) => repeatDays.includes(day)).map(getWeekdayLabel).join('·')} · ` : ''}${mode === 'time'
-          ? hasEventEnd
-            ? `${dateLabel(startDate)} ${startClock} – ${dateLabel(endDate)} ${endClock}`
-            : `${dateLabel(startDate)} ${startClock} · 종료 시각 미정`
-          : startDate === endDate
-            ? `${dateLabel(startDate)} · 종일`
-            : `${dateLabel(startDate)} – ${dateLabel(endDate)} · 종일`}`;
-  const eventTimePanel = kind === 'event' ? (
-    <section
-      aria-hidden={!timeSettingsOpen}
-      aria-label="일정 시간 상세"
-      className={styles.eventTimeSidePanel}
-      data-open={timeSettingsOpen}
-      id="event-time-reveal"
-      inert={!timeSettingsOpen}
-    >
-      <div className={styles.taskTimeContent}>
-        <div className={styles.optionRow}>
-          <span className={styles.optionLabel}>시간 방식</span>
-          <div aria-label="시간 방식" className={styles.segmentedControl} data-selection={mode === 'time' ? 'time' : 'date'} role="radiogroup">
-            <span aria-hidden="true" className={styles.segmentedSelection} />
-            <button aria-checked={mode === 'time'} className={styles.segmentedOption} onClick={() => { setMode('time'); setDirty(true); }} onKeyDown={handleRadioKeyDown} role="radio" tabIndex={mode === 'time' ? 0 : -1} type="button">정확한 시각</button>
-            <button aria-checked={mode === 'date'} className={styles.segmentedOption} onClick={() => { setMode('date'); setDirty(true); }} onKeyDown={handleRadioKeyDown} role="radio" tabIndex={mode === 'date' ? 0 : -1} type="button">종일</button>
-          </div>
-        </div>
-        <div className={styles.repeatControls}>
-          <div className={styles.repeatModeRow}>
-            <span className={styles.optionLabel}>반복</span>
-            <div aria-label="반복" className={styles.segmentedControl} data-selection={repeatMode} role="radiogroup">
-              <span aria-hidden="true" className={styles.segmentedSelection} />
-              <button aria-checked={repeatMode === 'once'} className={styles.segmentedOption} onClick={() => { setRepeatMode('once'); setDirty(true); }} onKeyDown={handleRadioKeyDown} role="radio" tabIndex={repeatMode === 'once' ? 0 : -1} type="button">한 번</button>
-              <button aria-checked={repeatMode === 'weekly'} className={styles.segmentedOption} onClick={() => { if (repeatMode === 'once') setRepeatDays([getWeekday(startDate || selectedDate)]); setRepeatMode('weekly'); setDirty(true); }} onKeyDown={handleRadioKeyDown} role="radio" tabIndex={repeatMode === 'weekly' ? 0 : -1} type="button">매주 반복</button>
-            </div>
-          </div>
-          {repeatMode === 'weekly' && (
-            <>
-              <fieldset className={styles.weekdayChoices}>
-                <legend>반복 요일</legend>
-                {getWeekdayOrder().map((day) => (
-                  <button
-                    aria-pressed={repeatDays.includes(day)}
-                    className={styles.weekdayChoice}
-                    key={day}
-                    onClick={() => {
-                      setRepeatDays((current) => current.includes(day)
-                        ? current.length > 1 ? current.filter((entry) => entry !== day) : current
-                        : [...current, day].sort((first, second) => first - second));
-                      setDirty(true);
-                    }}
-                    type="button"
-                  >{getWeekdayLabel(day)}</button>
-                ))}
-              </fieldset>
-              {errors.recurrence && <p className={styles.fieldError} role="alert">{errors.recurrence}</p>}
-            </>
-          )}
-        </div>
-        <label className={styles.taskTimeToggle}>
-          <span>상단 진행 카드 표시</span>
-          <input aria-label="상단 진행 카드 표시" checked={showInProgressSummary} onChange={(event) => { setShowInProgressSummary(event.currentTarget.checked); setDirty(true); }} type="checkbox" />
-          <span aria-hidden="true" className={styles.taskTimeSwitch} />
-        </label>
-        {mode === 'time' && (
-          <label className={styles.eventEndOption}>
-            <input
-              checked={hasEventEnd || isMultiDayEvent}
-              disabled={isMultiDayEvent}
-              onChange={(event) => {
-                const enabled = event.currentTarget.checked;
-                setHasEventEnd(enabled);
-                if (!enabled) setEventCountdownReference('start');
-                setDirty(true);
-              }}
-              type="checkbox"
-            />
-            종료 시각 설정
-          </label>
-        )}
-        <EventFields {...timingProps} endRequired={endRequired} />
-        <label className={styles.taskTimeToggle}>
-          <span>시작 카운트다운</span>
-          <input aria-label="시작 카운트다운" checked={eventCountdownEnabled} onChange={(event) => { setEventCountdownEnabled(event.currentTarget.checked); setDirty(true); }} type="checkbox" />
-          <span aria-hidden="true" className={styles.taskTimeSwitch} />
-        </label>
-        {eventCountdownEnabled && (
-          <div className={styles.eventCountdownOptions}>
-            <label className={styles.field}>
-              <span>카운트다운 기준 시각</span>
-              <select
-                aria-label="카운트다운 기준 시각"
-                onChange={(event) => { setEventCountdownReference(event.currentTarget.value as EventCountdown['reference']); setDirty(true); }}
-                value={eventCountdownReference}
-              >
-                <option value="start">시작</option>
-                <option disabled={!hasEventEnd} value="end">종료</option>
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span>{eventCountdownReference === 'start' ? '시작' : '종료'} 며칠 전</span>
-              <input aria-label={`${eventCountdownReference === 'start' ? '시작' : '종료'} 며칠 전`} max={30} min={0} onChange={(event) => { setEventCountdownDaysBefore(Number(event.currentTarget.value)); setDirty(true); }} type="number" value={eventCountdownDaysBefore} />
-            </label>
-          </div>
-        )}
-      </div>
-    </section>
-  ) : null;
+  const repeatSummary = repeatMode === 'weekly'
+    ? `매주 ${getWeekdayOrder(preferences.weekStartsOn).filter((day) => repeatDays.includes(day)).map(getWeekdayLabel).join('·')}${initialRecurrence?.untilDate ? ` · ${dateLabel(initialRecurrence.untilDate)}까지` : ''}` : '한 번';
+  const weeklyError = invalidWeeklyRange ? '매주 반복 일정은 하루 안에 끝나야 합니다. 반복을 한 번으로 바꾸거나 날짜를 하루로 맞춰 주세요.' : repeatMode === 'weekly' ? errors.recurrence : undefined;
+  const displaySummary = `${effectiveKind === 'event' ? `홈 카드 ${showInProgressSummary ? '표시' : '숨김'} · ` : ''}${countdownEnabled && countdownAvailable ? `${countdownTarget} 기준 · ${getCountdownWindowLabel(daysBefore)}` : '남은 시간 숨김'}`;
 
   return (
     <DialogShell
+      busy={saving}
       dirty={dirty}
-      expanded={kind === 'event' && timeSettingsOpen}
-      sidePanel={eventTimePanel}
+      wide={kind !== 'task'}
       footer={(requestClose) => (
         <footer className={styles.footer}>
           {initialItem && onDelete && <button className={styles.delete} disabled={saving || readOnly} onClick={onDelete} type="button">삭제</button>}
-          <button className={styles.save} disabled={saving || readOnly} type="submit">저장</button>
           <button className={styles.cancel} disabled={saving} onClick={requestClose} type="button">취소</button>
+          <button className={styles.save} disabled={saving || readOnly} type="submit">{saving ? '저장 중…' : '저장'}</button>
         </footer>
       )}
       initialFocusRef={titleRef}
@@ -384,29 +288,24 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
       onChange={() => setDirty(true)}
       onClose={onClose}
       onSubmit={save}
-      subtitle={!initialItem && kind !== 'task' && kind !== 'event' ? formatKoreanDate(selectedDate) : undefined}
-      title={kind === 'task' || kind === 'event' ? (
+      subtitle={effectiveKind === 'task' ? '할 일' : effectiveKind === 'event' ? '일정' : effectiveKind === 'window' ? '시작 중심 기간' : '마감 기간'}
+      title={(
         <input
-          aria-label={kind === 'event' ? '일정 이름' : '할 일 이름'}
+          aria-label={kind === 'event' ? '일정 이름' : kind === 'task' ? '할 일 이름' : '제목'}
+          aria-invalid={Boolean(errors.title)}
+          aria-describedby={errors.title ? 'editor-title-error' : undefined}
           className={styles.titleInput}
           maxLength={200}
           onChange={(event) => setTitle(event.currentTarget.value)}
-          placeholder={kind === 'event' ? '새 일정' : '새 할 일'}
+          placeholder={kind === 'task' ? '예: 논문 초안 정리' : '예: 수강신청'}
           ref={titleRef}
           value={title}
         />
-      ) : initialItem ? '일정 수정' : getEditorTitle(kind)}
+      )}
       titleLabel={initialItem ? '일정 수정' : getEditorTitle(kind)}
     >
-      {kind !== 'task' && kind !== 'event' && <label className={styles.field}>
-        <span>제목</span>
-        <input ref={titleRef} maxLength={201} onChange={(event) => setTitle(event.currentTarget.value)} value={title} />
-        <small className={styles.counter}>{title.length}/200</small>
-        {errors.title && <span className={styles.fieldError}>{errors.title}</span>}
-      </label>}
-      {(kind === 'task' || kind === 'event') && errors.title && <p className={styles.fieldError} role="alert">{errors.title}</p>}
-      {kind === 'event' && (
-        <section aria-label="일정 유형" className={styles.scheduleOptions}>
+      {errors.title && <p className={styles.fieldError} id="editor-title-error" role="alert">{errors.title}</p>}
+      {kind === 'event' && <section aria-label="일정 유형" className={styles.scheduleOptions}>
           <fieldset className={styles.eventColorPalette}>
             <legend className={styles.visuallyHidden}>일정 색상</legend>
             <span aria-hidden="true" className={styles.eventColorLabel}>일정 색상</span>
@@ -417,7 +316,7 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
                   aria-pressed={categoryColor === color || !categoryColor.startsWith('#') && getTaskCategoryColorIndex(categoryColor) === index}
                   className={styles.eventColorSwatch}
                   key={color}
-                  onClick={() => { setCategoryColor(color); setDirty(true); }}
+                  onClick={() => { setCategoryColor(color); setCategoryChanged(true); setDirty(true); }}
                   style={{ '--event-color': color } as CSSProperties}
                   type="button"
                 ><span aria-hidden="true" /></button>
@@ -429,183 +328,134 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
             <fieldset className={styles.eventExtraPalette} id="event-extra-colors">
               <legend>추가 색상</legend>
               {TASK_CATEGORY_EXTRA_COLORS.map((color) => (
-                <button aria-label={`일정 색상 ${color}`} aria-pressed={categoryColor === color} className={styles.eventColorSwatch} key={color} onClick={() => { setCategoryColor(color); setDirty(true); }} style={{ '--event-color': color } as CSSProperties} type="button"><span aria-hidden="true" /></button>
+                <button aria-label={`일정 색상 ${color}`} aria-pressed={categoryColor === color} className={styles.eventColorSwatch} key={color} onClick={() => { setCategoryColor(color); setCategoryChanged(true); setDirty(true); }} style={{ '--event-color': color } as CSSProperties} type="button"><span aria-hidden="true" /></button>
               ))}
             </fieldset>
           )}
-          <section aria-label="일정 시간 설정" className={`${styles.taskTimeSettings} ${styles.eventTimeSettings}`} data-open={timeSettingsOpen}>
-            <button
-              aria-controls="event-time-reveal"
-              aria-expanded={timeSettingsOpen}
-              className={`${styles.timeSettings} ${styles.timeSettingsToggle}`}
-              onClick={() => setTimeSettingsOpen((current) => !current)}
-              type="button"
-            >
-              <div>
-                <strong>시간 설정</strong>
-                <span>{timeSettingsSummary}</span>
-              </div>
-            </button>
-          </section>
-        </section>
-      )}
-      {kind === 'task' && <DailyTaskFields endDate={endDate} errors={errors} onEndDate={setEndDate} unscheduled={unscheduled} />}
-      {kind === 'window' && <WindowPeriodFields {...timingProps} countdownEnabled={countdownEnabled} daysBefore={daysBefore} errors={errors} hasWindowEnd={hasWindowEnd} showTiming={false} onCountdownEnabled={setCountdownEnabled} onDaysBefore={setDaysBefore} onWindowEnd={(value) => { setHasWindowEnd(value); if (value && !endDate) setEndDate(selectedDate); if (value) setEndClock(''); }} />}
-      {kind === 'deadline' && <DeadlinePeriodFields {...timingProps} countdownEnabled={countdownEnabled} daysBefore={daysBefore} errors={errors} hasDeadlineStart={hasDeadlineStart} showTiming={false} onCountdownEnabled={setCountdownEnabled} onDaysBefore={setDaysBefore} onDeadlineStart={setHasDeadlineStart} onStartClock={setStartClock} onStartDate={setStartDate} selectedDate={selectedDate} />}
+      </section>}
       {kind === 'task' ? (
-        <section aria-label="시간 설정" className={styles.taskTimeSettings}>
-          <label className={styles.taskTimeToggle}>
-            <span>시간 설정</span>
-            <input aria-label="시간 설정" checked={mode === 'time'} onChange={(event) => {
-              const enabled = event.currentTarget.checked;
-              setMode(enabled ? 'time' : 'date');
-              setUnscheduled(false);
-              if (!enabled) setReminderOffset(null);
-            }} type="checkbox" />
-            <span aria-hidden="true" className={styles.taskTimeSwitch} />
-          </label>
-          <div
-            aria-hidden={mode !== 'time' || unscheduled}
-            className={styles.taskTimeReveal}
-            data-open={mode === 'time' && !unscheduled}
-            inert={mode !== 'time' || unscheduled}
-          >
-            <div className={styles.taskTimeRevealInner}>
-              <div className={styles.taskTimeContent}>
-                <TaskTimeInput
-                  endClock={endClock}
-                  endFold={endFold}
-                  endResolution={endResolution}
-                  error={errors['timing.endAt']}
-                  onEndClock={(value) => { setEndClock(value); setEndFold(null); }}
-                  onEndFold={setEndFold}
-                  timeZone={timeZone}
-                />
+        <>
+          <div className={styles.taskBasics}>
+            <DailyTaskFields endDate={endDate} errors={errors} onEndDate={timingProps.onEndDate} unscheduled={unscheduled} />
+            <section className={styles.categorySection} aria-label="할 일 분류">
+              <label className={styles.field}>
+                <span>분류</span>
+                <SettingsDropdown ariaLabel="분류" className={styles.categoryDropdown} options={categoryDropdownOptions} portal value={category} onChange={(nextCategory) => {
+                  setCategory(nextCategory);
+                  const existing = categoryOptions.find((entry) => entry.name.toLocaleLowerCase('ko-KR') === nextCategory.toLocaleLowerCase('ko-KR'));
+                  if (existing) setCategoryColor(existing.color);
+                  setCategoryChanged(true); setDirty(true);
+                }} />
+              </label>
+            </section>
+          </div>
+          {unscheduled && <p className={styles.help}>날짜 미정 할 일입니다. 시간 설정을 켜면 선택한 날짜를 지정합니다.</p>}
+          <section aria-label="시간 설정" className={styles.taskTimeSettings}>
+            <label className={styles.taskTimeToggle}>
+              <span>시간 설정</span>
+              <input aria-label="시간 설정" checked={mode === 'time'} onChange={(event) => changeTiming(() => {
+                const enabled = event.currentTarget.checked;
+                setMode(enabled ? 'time' : 'date'); setUnscheduled(false);
+                if (!endDate) setEndDate(selectedDate);
+                if (!enabled) setReminderOffset(null);
+              })} type="checkbox" />
+              <span aria-hidden="true" className={styles.taskTimeSwitch} />
+            </label>
+            <div aria-hidden={mode !== 'time' || unscheduled} className={styles.taskTimeReveal} data-open={mode === 'time' && !unscheduled} inert={mode !== 'time' || unscheduled}>
+              <div className={styles.taskTimeRevealInner}><div className={styles.taskTimeContent}>
+                <TaskTimeInput endClock={endClock} endFold={endFold} endResolution={endResolution} error={errors['timing.endAt']} onEndClock={timingProps.onEndClock} onEndFold={timingProps.onEndFold} timeZone={timeZone} />
                 <ReminderSettings compact value={reminderOffset} onChange={(value) => { setReminderOffset(value); setDirty(true); }} />
-              </div>
+                <p className={styles.help}>시간 설정을 끄면 시각과 기기 알림이 해제됩니다.</p>
+              </div></div>
+            </div>
+          </section>
+        </>
+      ) : kind === 'event' ? (
+        <section aria-label="일정 시간 설정" className={styles.basicTiming}>
+          <div className={styles.optionRow}>
+            <span className={styles.optionLabel}>시간 방식</span>
+            <div aria-label="시간 방식" className={styles.segmentedControl} data-selection={mode === 'time' ? 'time' : 'date'} role="radiogroup">
+              <span aria-hidden="true" className={styles.segmentedSelection} />
+              <button aria-checked={mode === 'time'} className={styles.segmentedOption} onClick={() => changeTiming(() => setMode('time'))} onKeyDown={handleRadioKeyDown} role="radio" tabIndex={mode === 'time' ? 0 : -1} type="button">정확한 시각</button>
+              <button aria-checked={mode === 'date'} className={styles.segmentedOption} onClick={() => changeTiming(() => setMode('date'))} onKeyDown={handleRadioKeyDown} role="radio" tabIndex={mode === 'date' ? 0 : -1} type="button">종일</button>
             </div>
           </div>
+          {mode === 'time' && !isMultiDayEvent && <label className={styles.eventEndOption}>
+            <input checked={hasEventEnd || isMultiDayEvent} disabled={isMultiDayEvent} onChange={(event) => changeTiming(() => {
+              const enabled = event.currentTarget.checked; setHasEventEnd(enabled);
+              if (!enabled) { setEventCountdownReference('start'); setCountdownChanged(true); }
+            })} type="checkbox" />종료 시각 설정
+          </label>}
+          <EventFields {...timingProps} endRequired={hasEventEnd || isMultiDayEvent} />
+          {newPeriod && <section aria-label="여러 날 일정의 기준" className={styles.periodFocus}>
+            <fieldset className={styles.segment}>
+              <legend>중요한 날짜</legend>
+              <label><input checked={periodFocus === 'start'} name="period-focus" onChange={() => { setPeriodFocus('start'); setDirty(true); }} type="radio" /> 시작일</label>
+              <label><input checked={periodFocus === 'deadline'} name="period-focus" onChange={() => { setPeriodFocus('deadline'); setDirty(true); }} type="radio" /> 마감일</label>
+            </fieldset>
+            <p>{periodFocus === 'start' ? '시작 중심' : '마감 중심'} 기간으로 저장됩니다. 미완료 기간은 홈 카드에 표시되며, 일정의 홈 카드 선택은 기간에 적용되지 않습니다.</p>
+          </section>}
         </section>
-      ) : kind === 'event' ? null : (
-        <section className={styles.timeSettings}>
-          <div>
-            <strong>시간 설정</strong>
-            <span>{timeSettingsSummary}</span>
-          </div>
-          <button className={styles.timeSettingsButton} onClick={() => setTimeSettingsOpen(true)} type="button">
-            {mode === 'time' ? '변경' : '＋ 시간 추가'}
-          </button>
-        </section>
-      )}
-
-      {kind === 'task' && (
-        <section className={styles.categorySection} aria-label="할 일 분류">
-          <label className={styles.field}>
-            <span>분류</span>
-            <SettingsDropdown
-              ariaLabel="분류"
-              className={styles.categoryDropdown}
-              onChange={(nextCategory) => {
-                setCategory(nextCategory);
-                const existing = categoryOptions.find((entry) => entry.name.toLocaleLowerCase('ko-KR') === nextCategory.toLocaleLowerCase('ko-KR'));
-                if (existing) setCategoryColor(existing.color);
-                setDirty(true);
-              }}
-              options={categoryDropdownOptions}
-              portal
-              value={category}
-            />
-          </label>
-        </section>
-      )}
-
-      {kind === 'event' && isMultiDayEvent && (
-        <section aria-label="여러 날 일정의 기준" className={styles.periodFocus}>
-          <fieldset className={styles.segment}>
-            <legend>어느 날짜가 더 중요한가요?</legend>
-            <label><input checked={periodFocus === 'start'} onChange={() => { setPeriodFocus('start'); setDirty(true); }} type="radio" /> 시작일</label>
-            <label><input checked={periodFocus === 'deadline'} onChange={() => { setPeriodFocus('deadline'); setDirty(true); }} type="radio" /> 마감일</label>
-          </fieldset>
-          <p>{periodFocus === 'start' ? '시작 시점을 기준으로 진행 상황과 디데이를 보여줍니다.' : '마감 시점을 기준으로 진행 상황을 보여줍니다.'}</p>
-        </section>
-      )}
-
-      {timeSettingsOpen && kind !== 'event' && (
-        <TimeSettingsDialog
-          initial={{
-            mode: mode === 'time' ? 'time' : 'date',
-            startDate,
-            endDate,
-            startClock,
-            endClock,
-            reminderOffset,
-            eventCountdownEnabled,
-            eventCountdownDaysBefore,
-            eventCountdownReference,
-            startFold,
-            endFold,
-            hasDeadlineStart,
-            hasWindowEnd,
-          }}
-          kind={kind}
-          onApply={(settings) => {
-            setMode(settings.mode);
-            if (kind === 'task') setUnscheduled(false);
-            setStartDate(settings.startDate);
-            setEndDate(settings.endDate);
-            setStartClock(settings.startClock);
-            setEndClock(settings.endClock);
-            setReminderOffset(settings.reminderOffset);
-            setEventCountdownEnabled(settings.eventCountdownEnabled);
-            setEventCountdownDaysBefore(settings.eventCountdownDaysBefore);
-            setEventCountdownReference(settings.eventCountdownReference);
-            setStartFold(settings.startFold);
-            setEndFold(settings.endFold);
-            setHasDeadlineStart(settings.hasDeadlineStart);
-            setHasWindowEnd(settings.hasWindowEnd);
-            setDirty(true);
-            setTimeSettingsOpen(false);
-          }}
-          onClose={() => setTimeSettingsOpen(false)}
-          selectedDate={selectedDate}
-          timeZone={timeZone}
-        />
-      )}
-
-      <label className={styles.field}>
-        <span>메모</span>
-        <textarea maxLength={10_001} onChange={(event) => setNotes(event.currentTarget.value)} rows={4} value={notes} />
-        <small className={styles.counter}>{notes.length}/10,000</small>
-        {errors.notes && <span className={styles.fieldError}>{errors.notes}</span>}
-      </label>
-
-      {(kind === 'window' || kind === 'deadline' || isMultiDayEvent) && (
-        <EditorSection title="하위 할 일 · 완료" summary={`${checklist.filter((item) => item.completed).length}/${checklist.length}개 완료 · ${completion === 'completed' ? '기간 완료' : '미완료'}`} invalid={Object.keys(errors).some((path) => path.startsWith('checklist'))}>
-          <ChecklistEditor value={checklist} onChange={(value) => { setChecklist(value); setDirty(true); }} disabled={readOnly} />
-          {Object.entries(errors).filter(([path]) => path.startsWith('checklist')).map(([path, message]) => <p className={styles.fieldError} key={path} role="alert">{message}</p>)}
-          <label className={styles.switch}><input checked={completion === 'completed'} onChange={(event) => setCompletion(event.currentTarget.checked ? 'completed' : 'pending')} type="checkbox" /><span>{kind === 'event' ? periodFocus === 'start' ? '신청 완료' : '일정 완료' : kind === 'window' ? '신청 완료' : '제출 완료'}</span></label>
-        </EditorSection>
-      )}
-
-      {kind === 'task' || kind === 'event' ? (
-        <label className={styles.field}>
-          <span>관련 링크 <small>선택</small></span>
-          <input inputMode="url" onChange={(event) => setSourceUrl(event.currentTarget.value)} placeholder="https://" value={sourceUrl} />
-          {errors.sourceUrl && <span className={styles.fieldError}>{errors.sourceUrl}</span>}
-        </label>
       ) : (
-      <EditorSection title="추가 설정" summary="시간대 · 링크" invalid={Boolean(errors.sourceUrl || errors['timing.timeZone'])}>
-        {!(unscheduled && canBeUnscheduled) && (
-          <label className={styles.field}><span>시간대</span><input aria-label="시간대" aria-invalid={Boolean(errors['timing.timeZone'])} aria-describedby={errors['timing.timeZone'] ? 'editor-time-zone-error' : undefined} autoCapitalize="none" onChange={(event) => { setTimeZone(event.currentTarget.value); setStartFold(null); setEndFold(null); }} value={timeZone} />{errors['timing.timeZone'] && <span className={styles.fieldError} id="editor-time-zone-error">{errors['timing.timeZone']}</span>}</label>
-        )}
-        <label className={styles.field}>
-          <span>관련 링크 <small>선택</small></span>
-          <input inputMode="url" onChange={(event) => setSourceUrl(event.currentTarget.value)} placeholder="https://" value={sourceUrl} />
-          {errors.sourceUrl && <span className={styles.fieldError}>{errors.sourceUrl}</span>}
-        </label>
-      </EditorSection>
+        <section aria-label="기간 날짜와 시각" className={styles.basicTiming}>
+          {kind === 'window' && mode === 'time' && <label className={styles.switch}><input checked={hasWindowEnd} onChange={(event) => changeTiming(() => { setHasWindowEnd(event.currentTarget.checked); if (!endDate) setEndDate(selectedDate); })} type="checkbox" /><span>종료 시각도 기록</span></label>}
+          {kind === 'deadline' && <label className={styles.switch}><input checked={hasDeadlineStart} onChange={(event) => changeTiming(() => { setHasDeadlineStart(event.currentTarget.checked); if (!startDate) { setStartDate(selectedDate); setStartClock(''); } })} type="checkbox" /><span>기간 시작일도 기록</span></label>}
+          <ItemTimingFields {...timingProps} kind={kind} startRequired={kind === 'window' || hasDeadlineStart} endRequired={kind === 'deadline'} hasWindowEnd={hasWindowEnd} />
+          <ReminderSettings compact value={reminderOffset} onChange={(value) => { setReminderOffset(value); setDirty(true); }} />
+        </section>
       )}
-      {errors.timing && <p className={styles.formError}>{errors.timing}</p>}
+      {kind === 'event' && <EditorSection title="반복 설정" summary={repeatSummary} invalid={Boolean(weeklyError)}>
+        <div className={styles.repeatControls}>
+          <div className={styles.repeatModeRow}>
+            <span className={styles.optionLabel}>반복</span>
+            <div aria-label="반복" className={styles.segmentedControl} data-selection={repeatMode} role="radiogroup">
+              <span aria-hidden="true" className={styles.segmentedSelection} />
+              <button aria-checked={repeatMode === 'once'} className={styles.segmentedOption} onClick={() => { setRepeatMode('once'); setDirty(true); }} onKeyDown={handleRadioKeyDown} role="radio" tabIndex={repeatMode === 'once' ? 0 : -1} type="button">한 번</button>
+              <button aria-checked={repeatMode === 'weekly'} aria-describedby={weeklyError ? 'editor-repeat-error' : undefined} data-invalid={Boolean(weeklyError)} className={styles.segmentedOption} onClick={() => { if (repeatMode === 'once') setRepeatDays([getWeekday(startDate || selectedDate)]); setRepeatMode('weekly'); setDirty(true); }} onKeyDown={handleRadioKeyDown} role="radio" tabIndex={repeatMode === 'weekly' ? 0 : -1} type="button">매주 반복</button>
+            </div>
+          </div>
+          {repeatMode === 'weekly' && <fieldset className={styles.weekdayChoices}>
+            <legend>반복 요일</legend>
+            {getWeekdayOrder(preferences.weekStartsOn).map((day) => <button aria-pressed={repeatDays.includes(day)} className={styles.weekdayChoice} key={day} onClick={() => {
+              setRepeatDays((current) => current.includes(day) ? current.length > 1 ? current.filter((entry) => entry !== day) : current : [...current, day].sort((first, second) => first - second)); setDirty(true);
+            }} type="button">{getWeekdayLabel(day)}</button>)}
+          </fieldset>}
+          {repeatMode === 'weekly' && initialRecurrence?.untilDate && <p className={styles.help}>{dateLabel(initialRecurrence.untilDate)}까지 반복</p>}
+          {weeklyError && <p className={styles.fieldError} id="editor-repeat-error" role="alert">{weeklyError}</p>}
+        </div>
+      </EditorSection>}
+      {kind !== 'task' && <EditorSection title="D-day 표시" summary={displaySummary} invalid={Boolean(errors.daysBefore)}>
+        {effectiveKind === 'event' && <label className={styles.taskTimeToggle}>
+          <span>홈 카드 표시</span><input aria-label="홈 카드 표시" checked={showInProgressSummary} onChange={(event) => { setShowInProgressSummary(event.currentTarget.checked); setDisplayChanged(true); setDirty(true); }} type="checkbox" /><span aria-hidden="true" className={styles.taskTimeSwitch} />
+        </label>}
+        {countdownAvailable ? <>
+          <label className={styles.taskTimeToggle}>
+            <span>남은 시간 표시</span><input aria-label="남은 시간 표시" checked={countdownEnabled} onChange={(event) => changeCountdown(() => setCountdownEnabled(event.currentTarget.checked))} type="checkbox" /><span aria-hidden="true" className={styles.taskTimeSwitch} />
+          </label>
+          {(countdownEnabled || errors.daysBefore) && <div className={styles.eventCountdownOptions}>
+            {effectiveKind === 'event' ? <label className={styles.field}><span>카운트다운 기준</span>
+              <select aria-label="카운트다운 기준" onChange={(event) => changeCountdown(() => setEventCountdownReference(event.currentTarget.value as EventCountdown['reference']))} value={hasEventEnd ? eventCountdownReference : 'start'}>
+                <option value="start">시작</option><option disabled={!hasEventEnd} value="end">종료</option>
+              </select>
+            </label> : <div className={styles.field}><span>카운트다운 기준</span><span className={styles.readOnlyValue}>{countdownTarget}</span></div>}
+            <label className={styles.field}><span>표시 시작 일수</span><input aria-label="표시 시작 일수" aria-invalid={Boolean(errors.daysBefore)} aria-describedby={errors.daysBefore ? 'editor-countdown-error' : undefined} max={30} min={0} onChange={(event) => changeCountdown(() => setDaysBefore(Number(event.currentTarget.value)))} type="number" value={daysBefore} />
+              {errors.daysBefore && <span className={styles.fieldError} id="editor-countdown-error">{errors.daysBefore}</span>}
+            </label>
+            <p className={styles.help}>0일을 입력하면 남은 시간 숫자를 숨깁니다.</p>
+          </div>}
+        </> : <p className={styles.help}>시작 날짜를 설정하면 남은 시간을 표시할 수 있어요.</p>}
+      </EditorSection>}
+      {period && <EditorSection title="하위 할 일 · 완료" summary={`${checklist.filter((item) => item.completed).length}/${checklist.length}개 완료 · ${completion === 'completed' ? '기간 완료' : '미완료'}`} invalid={Object.keys(errors).some((path) => path.startsWith('checklist'))}>
+        <ChecklistEditor value={checklist} onChange={(value) => { setChecklist(value); setDirty(true); }} disabled={readOnly} showHeading={false} />
+        {Object.entries(errors).filter(([path]) => path.startsWith('checklist')).map(([path, message]) => <p className={styles.fieldError} key={path} role="alert">{message}</p>)}
+        <label className={styles.switch}><input checked={completion === 'completed'} onChange={(event) => setCompletion(event.currentTarget.checked ? 'completed' : 'pending')} type="checkbox" /><span>{effectiveKind === 'window' ? '신청 완료' : '제출 완료'}</span></label>
+      </EditorSection>}
+      <EditorSection title="부가 정보" summary={`${notes ? '메모 있음 · ' : ''}${sourceUrl ? '링크 있음 · ' : ''}메모 · 링크 · 시간대`} defaultOpen={Boolean(initialItem?.notes || initialItem?.sourceUrl || initialZone !== defaultTimeZone)} invalid={Boolean(errors.notes || errors.sourceUrl || errors['timing.timeZone'])}>
+        <label className={styles.field}><span>메모</span><textarea aria-invalid={Boolean(errors.notes)} maxLength={10_001} onChange={(event) => setNotes(event.currentTarget.value)} rows={3} value={notes} /><small className={styles.counter}>{notes.length}/10,000</small>{errors.notes && <span className={styles.fieldError}>{errors.notes}</span>}</label>
+        <label className={styles.field}><span>관련 링크 <small>선택</small></span><input aria-invalid={Boolean(errors.sourceUrl)} inputMode="url" onChange={(event) => setSourceUrl(event.currentTarget.value)} placeholder="https://" value={sourceUrl} />{errors.sourceUrl && <span className={styles.fieldError}>{errors.sourceUrl}</span>}</label>
+        {!(unscheduled && canBeUnscheduled) && <label className={styles.field}><span>시간대</span><input aria-label="시간대" aria-invalid={Boolean(errors['timing.timeZone'])} aria-describedby={errors['timing.timeZone'] ? 'editor-time-zone-error' : undefined} autoCapitalize="none" onChange={(event) => changeTiming(() => { setTimeZone(event.currentTarget.value); setStartFold(null); setEndFold(null); })} value={timeZone} />{errors['timing.timeZone'] && <span className={styles.fieldError} id="editor-time-zone-error">{errors['timing.timeZone']}</span>}</label>}
+      </EditorSection>
+      {errors.timing && <p className={styles.formError} role="alert">{errors.timing}</p>}
       <LocalSaveStatus phase={savePhase} message={saveError} />
     </DialogShell>
   );
@@ -627,90 +477,6 @@ function handleRadioKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
   radios[nextIndex]?.click();
 }
 
-type BuildInput = {
-  id: string; kind: ItemKind; title: string; category: string; categoryColor: TaskCategoryColor; notes: string; sourceUrl: string;
-  mode: TimingMode; timeZone: string; startDate: string; endDate: string; startClock: string; endClock: string;
-  startResolution: ReturnType<typeof parseLocalDateTime> | null; endResolution: ReturnType<typeof parseLocalDateTime> | null;
-  startFold: FoldChoice; endFold: FoldChoice; startRequired: boolean; endRequired: boolean; hasEventEnd: boolean; recurrence?: WeeklyRecurrence;
-  focus?: 'start' | 'deadline';
-  hasDeadlineStart: boolean; hasWindowEnd: boolean;
-  includeEventColor: boolean;
-  showInProgressSummary: boolean;
-  completion: Completion; checklist: PeriodChecklistItem[]; countdownEnabled: boolean; daysBefore: number;
-  eventCountdownEnabled: boolean; eventCountdownDaysBefore: number; eventCountdownReference: EventCountdown['reference'];
-  onFieldError: (path: string, message: string) => void;
-};
-
-function buildProposal(input: BuildInput): ProposedCalendarItem {
-  const common = {
-    id: input.id,
-    title: input.title,
-    ...(input.category.trim() ? { category: input.category.trim() } : {}),
-    ...((input.kind === 'task' && input.category.trim()) || input.includeEventColor ? { categoryColor: input.categoryColor } : {}),
-    ...(input.notes ? { notes: input.notes } : {}),
-    ...(input.sourceUrl.trim() ? { sourceUrl: input.sourceUrl.trim() } : {}),
-  };
-  if (input.kind === 'event') {
-    const timing = input.mode === 'date'
-      ? { type: 'date' as const, startDate: input.startDate, endDate: input.endDate, timeZone: input.timeZone }
-      : {
-          type: 'time' as const,
-          startAt: resolveInstant(input, 'start'),
-          endAt: input.hasEventEnd ? resolveInstant(input, 'end') : null,
-          timeZone: input.timeZone,
-        };
-    return {
-      ...common,
-      kind: 'event',
-      showInProgressSummary: input.showInProgressSummary,
-      ...(input.recurrence ? { recurrence: input.recurrence } : {}),
-      countdown: { enabled: input.eventCountdownEnabled, daysBefore: input.eventCountdownDaysBefore, reference: input.eventCountdownReference },
-      timing,
-    };
-  }
-  if (input.kind === 'task') {
-    if (input.mode === 'unscheduled') return { ...common, kind: 'task', timing: { type: 'unscheduled' }, completion: input.completion };
-    if (input.mode === 'date') return { ...common, kind: 'task', timing: { type: 'date', startDate: null, endDate: input.endDate, timeZone: input.timeZone }, completion: input.completion };
-    return { ...common, kind: 'task', timing: { type: 'time', startAt: null, endAt: resolveInstant(input, 'end'), timeZone: input.timeZone }, completion: input.completion };
-  }
-  const countdown = { enabled: input.countdownEnabled, daysBefore: input.daysBefore };
-  const completion = input.completion;
-  if (input.kind === 'deadline') {
-    const timing = input.mode === 'date'
-      ? { type: 'date' as const, startDate: input.hasDeadlineStart ? input.startDate || null : null, endDate: input.endDate, timeZone: input.timeZone }
-      : { type: 'time' as const, startAt: input.hasDeadlineStart ? resolveInstant(input, 'start') : null, endAt: resolveInstant(input, 'end'), timeZone: input.timeZone };
-    const startPresent = timing.type === 'date' ? timing.startDate !== null : timing.startAt !== null;
-    return { ...common, kind: 'deadline', ...(input.focus ? { focus: input.focus } : {}), timing, completion, checklist: input.checklist, startCountdown: startPresent ? countdown : null };
-  }
-  const timing = input.mode === 'date'
-    ? { type: 'date' as const, startDate: input.startDate, endDate: input.endDate, timeZone: input.timeZone }
-    : { type: 'time' as const, startAt: resolveInstant(input, 'start'), endAt: input.hasWindowEnd ? resolveInstant(input, 'end') : null, timeZone: input.timeZone };
-  return { ...common, kind: 'window', ...(input.focus ? { focus: input.focus } : {}), timing, completion, checklist: input.checklist, startCountdown: countdown };
-}
-
-function resolveInstant(input: BuildInput, part: 'start' | 'end'): string {
-  const resolution = part === 'start' ? input.startResolution : input.endResolution;
-  const choice = part === 'start' ? input.startFold : input.endFold;
-  const path = part === 'start' ? 'timing.startAt' : 'timing.endAt';
-  if (!resolution || resolution.status === 'invalid') {
-    input.onFieldError(path, resolution?.status === 'invalid' && resolution.reason === 'unknown-zone' ? '유효한 IANA 시간대를 입력해 주세요.' : '날짜와 시각을 입력해 주세요.');
-    return '';
-  }
-  if (resolution.status === 'valid') return resolution.instant;
-  if (!choice) input.onFieldError(path, '중복되는 시각의 첫 번째/두 번째를 선택해 주세요.');
-  return choice === 'later' ? resolution.later : resolution.earlier;
-}
-
-function toProposal(item: CalendarItem): ProposedCalendarItem {
-  const { revision: _revision, updatedAt: _updatedAt, deletedAt: _deletedAt, lastMutationId: _lastMutationId, lastMutationDigest: _lastMutationDigest, ...proposal } = item;
-  void _revision;
-  void _updatedAt;
-  void _deletedAt;
-  void _lastMutationId;
-  void _lastMutationDigest;
-  return proposal;
-}
-
 function getLocalParts(instant: string, timeZone: string): { date: string; time: string } {
   const value = Temporal.Instant.from(instant).toZonedDateTimeISO(timeZone);
   return { date: value.toPlainDate().toString(), time: `${String(value.hour).padStart(2, '0')}:${String(value.minute).padStart(2, '0')}` };
@@ -720,8 +486,8 @@ function getWeekday(date: string): number {
   return new Date(`${date}T12:00:00Z`).getUTCDay();
 }
 
-function getWeekdayOrder(): number[] {
-  return [1, 2, 3, 4, 5, 6, 0];
+function getWeekdayOrder(weekStartsOn: number): number[] {
+  return Array.from({ length: 7 }, (_, index) => (weekStartsOn + index) % 7);
 }
 
 function getWeekdayLabel(day: number): string {

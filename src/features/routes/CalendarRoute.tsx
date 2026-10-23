@@ -6,6 +6,7 @@ import type { ItemView, ProposedCalendarItem } from '../../domain/items';
 import { getTaskCategories } from '../../domain/task-categories';
 import { getLocalDate } from '../../domain/time';
 import { useRepository, useItems } from '../../lib/repository-context';
+import { parseRouteDate, updateRouteSearchParam } from '../../lib/route-date';
 import { useForegroundClock } from '../shell/useForegroundClock';
 import { AppShell } from '../shell/AppShell';
 import { createLocalPreviewFixture } from '../home/preview-data';
@@ -50,11 +51,12 @@ function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, remin
   const repository = useRepository();
   const preferences = useDesktopPreferences();
   const searchParams = useSearchParams();
+  const routeDate = parseRouteDate(searchParams.get('date'));
   const showingPeriods = searchParams.get('filter') === 'period';
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorItem, setEditorItem] = useState<ItemView | null>(null);
   const [detailsItem, setDetailsItem] = useState<ItemView | null>(null);
-  const [editorDate, setEditorDate] = useState(initialDate);
+  const [editorDate, setEditorDate] = useState(routeDate ?? initialDate);
   const [editorStartTime, setEditorStartTime] = useState('09:00');
   const [editorKind, setEditorKind] = useState<'task' | 'event'>('event');
   const [actionError, setActionError] = useState('');
@@ -154,7 +156,7 @@ function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, remin
       <WeekCalendarView
         items={items}
         nowMs={nowMs}
-        initialDate={initialDate}
+        initialDate={routeDate ?? initialDate}
         showingPeriods={showingPeriods}
         weekStartsOn={preferences.weekStartsOn}
         timeFormat={preferences.timeFormat}
@@ -163,6 +165,7 @@ function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, remin
         onAddEvent={(date) => addOn(date)}
         onAdd={addOn}
         onOpen={openItem}
+        onViewChange={(view) => updateRouteSearchParam('filter', view === 'periods' ? 'period' : null)}
       />
       {detailsItem && <CalendarItemDetailsDialog key={detailsItem.display.id} item={detailsItem} nowMs={nowMs} onClose={() => setDetailsItem(null)} onEdit={editDetailsItem} onToggleCountdown={toggleEventCountdown} />}
       {actionError && <p className={styles.feedback} role="alert">{actionError}</p>}

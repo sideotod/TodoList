@@ -1,10 +1,79 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { ProposedCalendarItem } from '../../src/domain/items';
+import { getTaskCategoryColor } from '../../src/domain/task-categories';
 import { chooseHomeDate } from './preview-helpers';
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-10-06T03:00:00.000Z'));
   await page.goto('/?preview=design');
+});
+
+test('phase 3 editor keeps a fixed desktop width and focuses the empty title error', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.getByRole('button', { name: '메뉴' }).click();
+  await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '새 일정' });
+  expect((await editor.boundingBox())?.width).toBe(520);
+  const title = editor.getByLabel('일정 이름', { exact: true });
+  await expect(title).toHaveValue('');
+  await expect(editor.getByLabel('시작 날짜', { exact: true })).toBeVisible();
+  await expect(editor.getByLabel(/^메모/)).toBeHidden();
+  await editor.getByRole('button', { name: '저장', exact: true }).click();
+  await expect(title).toBeFocused();
+  await expect(title).toHaveAttribute('aria-invalid', 'true');
+  await expect(editor.getByText('제목을 입력해 주세요.', { exact: true })).toHaveCount(1);
+  await title.fill('고정 폭 편집');
+  await editor.getByRole('button', { name: /^반복 설정/ }).click();
+  await editor.getByRole('button', { name: /^D-day 표시/ }).click();
+  await editor.getByRole('button', { name: /^부가 정보/ }).click();
+  expect((await editor.boundingBox())?.width).toBe(520);
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  const geometry = await editor.evaluate((element) => {
+    const body = element.querySelector('form > div')!;
+    const footer = element.querySelector('footer')!;
+    return { scroll: body.scrollHeight > body.clientHeight, bodyBottom: body.getBoundingClientRect().bottom, footerTop: footer.getBoundingClientRect().top, footerBottom: footer.getBoundingClientRect().bottom, overflow: element.scrollWidth > element.clientWidth };
+  });
+  expect(geometry.scroll).toBe(true);
+  expect(geometry.bodyBottom).toBeLessThanOrEqual(geometry.footerTop);
+  expect(geometry.footerBottom).toBeLessThanOrEqual(580);
+  expect(geometry.overflow).toBe(false);
+});
+
+test('phase 3 new period stores the displayed countdown and restores event-only draft settings', async ({ page }) => {
+  await page.getByRole('button', { name: '메뉴' }).click();
+  await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '새 일정' });
+  await editor.getByLabel('일정 이름', { exact: true }).fill('표시값 보존 기간');
+  await editor.getByRole('button', { name: /^D-day 표시/ }).click();
+  await editor.getByLabel('홈 카드 표시', { exact: true }).uncheck();
+  await editor.getByLabel('남은 시간 표시', { exact: true }).check();
+  await editor.getByLabel('카운트다운 기준', { exact: true }).selectOption('end');
+  await editor.getByLabel('표시 시작 일수', { exact: true }).fill('3');
+  await editor.getByLabel('종료 날짜', { exact: true }).fill('2026-10-08');
+  await expect(editor.getByLabel('홈 카드 표시', { exact: true })).toHaveCount(0);
+  await expect(editor.getByLabel('카운트다운 기준', { exact: true })).toHaveCount(0);
+  await expect(editor.getByText(/기간으로 저장/)).toBeVisible();
+  await editor.getByLabel('시작일', { exact: true }).check();
+  await expect(editor.getByLabel('표시 시작 일수', { exact: true })).toHaveValue('3');
+  await editor.getByLabel('종료 날짜', { exact: true }).fill('2026-10-06');
+  await expect(editor.getByLabel('홈 카드 표시', { exact: true })).not.toBeChecked();
+  await expect(editor.getByLabel('카운트다운 기준', { exact: true })).toHaveValue('end');
+  await editor.getByLabel('종료 날짜', { exact: true }).fill('2026-10-08');
+  await editor.getByRole('button', { name: '저장', exact: true }).click();
+  await expect(editor).toBeHidden();
+  const saved = (await storedItem(page, '표시값 보존 기간')).item;
+  expect(saved).toMatchObject({ kind: 'window', focus: 'start', startCountdown: { enabled: true, daysBefore: 3 } });
+  expect(saved).not.toHaveProperty('showInProgressSummary');
+  expect(saved).not.toHaveProperty('countdown');
+});
+
+test('home month navigation keeps the selected day in the viewed month', async ({ page }) => {
+  await expect(page.getByRole('heading', { name: '10월 6일 화요일' })).toBeVisible();
+
+  await page.getByRole('button', { name: '다음 달' }).click();
+
+  await expect(page.getByRole('heading', { name: '11월 6일 금요일' })).toBeVisible();
+  await expect(page.getByRole('gridcell', { name: /11월 6일/ })).toHaveAttribute('aria-selected', 'true');
 });
 
 async function openPeriod(page: Page, kind: 'window' | 'deadline' = 'window') {
@@ -30,6 +99,117 @@ async function storedItem(page: Page, title: string) {
   }, title);
 }
 
+async function seedItems(page: Page, items: ProposedCalendarItem[]) {
+  await page.evaluate((records) => localStorage.setItem('todolist:desktop-preview:v2', JSON.stringify({ version: 2, items: records, taskOrders: {}, reminderOffsets: {}, remindersEnabled: false })), items);
+  await page.reload();
+}
+
+test('phase 3 title edits keep exact instants, focus, imported metadata and optional fields', async ({ page }) => {
+  const original: ProposedCalendarItem = {
+    id: '12345678-1234-4234-8234-123456789012', kind: 'window', title: '가져온 신청', focus: 'start',
+    timing: { type: 'time', startAt: '2026-10-07T00:00:42.123Z', endAt: null, timeZone: 'Asia/Seoul' },
+    categoryColor: '#123456', checklist: [{ id: '12345678-1234-4234-8234-123456789013', title: '준비', completed: true }], completion: 'pending',
+    startCountdown: { enabled: false, daysBefore: 0 }, notes: '',
+    importSource: { uid: 'ical-original', occurrenceKey: 'occurrence', componentFingerprint: 'fingerprint' },
+  };
+  await seedItems(page, [original]);
+  await page.getByRole('button', { name: original.title, exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '일정 수정' });
+  await editor.getByLabel('제목', { exact: true }).fill('원본 보존 수정');
+  await editor.getByRole('button', { name: '저장', exact: true }).click();
+  expect((await storedItem(page, '원본 보존 수정')).item).toEqual({ ...original, title: '원본 보존 수정' });
+  await page.reload();
+  expect((await storedItem(page, '원본 보존 수정')).item).toEqual({ ...original, title: '원본 보존 수정' });
+});
+
+test('phase 3 existing events keep their kind and repeat until-date through edits', async ({ page }) => {
+  const original: ProposedCalendarItem = {
+    id: '12345678-1234-4234-8234-123456789014', kind: 'event', title: '기존 반복',
+    timing: { type: 'date', startDate: '2026-10-06', endDate: '2026-10-06', timeZone: 'Asia/Seoul' },
+    recurrence: { frequency: 'weekly', daysOfWeek: [2, 4], untilDate: '2026-12-31' },
+    importSource: { uid: 'ical-repeat', occurrenceKey: 'series', componentFingerprint: 'fingerprint' },
+  };
+  await seedItems(page, [original]);
+  await page.goto('/calendar/?preview=design');
+  await page.getByRole('button', { name: original.title, exact: true }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '일정 수정' });
+  await expect(editor.getByRole('button', { name: /^반복 설정/ })).toContainText('까지');
+  await editor.getByLabel('일정 이름', { exact: true }).fill('기존 반복 수정');
+  await editor.getByRole('button', { name: '저장', exact: true }).click();
+  expect((await storedItem(page, '기존 반복 수정')).item).toEqual({ ...original, title: '기존 반복 수정' });
+  await page.getByRole('button', { name: '기존 반복 수정', exact: true }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
+  await editor.getByLabel('종료일', { exact: true }).fill('2026-10-08');
+  await expect(editor.getByRole('alert')).toContainText('하루 안에');
+  await editor.getByRole('button', { name: '저장', exact: true }).click();
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel('시작일', { exact: true })).toHaveValue('2026. 10. 06.');
+  await editor.getByRole('radio', { name: '한 번' }).click();
+  await editor.getByRole('button', { name: '저장', exact: true }).click();
+  const saved = (await storedItem(page, '기존 반복 수정')).item;
+  expect(saved).toMatchObject({ kind: 'event', timing: { startDate: '2026-10-06', endDate: '2026-10-08' }, importSource: original.importSource });
+  expect(saved).not.toHaveProperty('recurrence');
+  expect(saved).not.toHaveProperty('countdown');
+  await expect(page.getByRole('button', { name: '기존 반복 수정', exact: true })).toHaveCount(3);
+});
+
+test('phase 3 home display and countdown remain independent and no-end uses start reference', async ({ page }) => {
+  for (const home of [false, true]) {
+    for (const countdown of [false, true]) {
+      const title = `표시 조합 ${home}-${countdown}`;
+      await page.getByRole('button', { name: '메뉴' }).click();
+      await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
+      const editor = page.getByRole('dialog', { name: '새 일정' });
+      await editor.getByLabel('일정 이름', { exact: true }).fill(title);
+      await editor.getByRole('button', { name: /^D-day 표시/ }).click();
+      await editor.getByLabel('홈 카드 표시', { exact: true }).setChecked(home);
+      await editor.getByLabel('남은 시간 표시', { exact: true }).check();
+      await editor.getByLabel('카운트다운 기준', { exact: true }).selectOption('end');
+      await editor.getByLabel('표시 시작 일수', { exact: true }).fill(countdown ? '30' : '0');
+      await editor.getByLabel('종료 시각 설정', { exact: true }).uncheck();
+      await expect(editor.getByLabel('카운트다운 기준', { exact: true })).toHaveValue('start');
+      await editor.getByLabel('남은 시간 표시', { exact: true }).setChecked(countdown);
+      await editor.getByRole('button', { name: '저장', exact: true }).click();
+      expect((await storedItem(page, title)).item).toMatchObject({ kind: 'event', timing: { endAt: null }, showInProgressSummary: home, countdown: { enabled: countdown, daysBefore: countdown ? 30 : 0, reference: 'start' } });
+      await expect(page.getByRole('region', { name: '임박한 일정' }).getByRole('article', { name: title })).toHaveCount(home ? 1 : 0);
+    }
+  }
+});
+
+test('phase 3 storage failure preserves the draft and deletion keeps confirmation', async ({ page }) => {
+  await page.getByRole('button', { name: '할 일 추가', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: '새 할 일' });
+  await editor.getByLabel('할 일 이름', { exact: true }).fill('저장 실패 입력');
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    const target = window as Window & { restorePreviewStorage?: () => void };
+    target.restorePreviewStorage = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (key === 'todolist:desktop-preview:v2') throw new Error('미리보기 저장 실패');
+      original.call(this, key, value);
+    };
+  });
+  await editor.getByRole('button', { name: '저장', exact: true }).click();
+  await expect(editor).toContainText('미리보기 저장 실패');
+  await expect(editor.getByLabel('할 일 이름', { exact: true })).toHaveValue('저장 실패 입력');
+  await page.evaluate(() => (window as Window & { restorePreviewStorage?: () => void }).restorePreviewStorage?.());
+  await editor.getByRole('button', { name: '저장', exact: true }).click();
+  await expect(editor).toBeHidden();
+  await page.getByRole('button', { name: '저장 실패 입력', exact: true }).click();
+  await page.getByRole('dialog', { name: '저장 실패 입력' }).getByRole('button', { name: '수정', exact: true }).click();
+  const editing = page.getByRole('dialog', { name: '일정 수정' });
+  page.once('dialog', (dialog) => { void dialog.dismiss(); });
+  await editing.getByRole('button', { name: '삭제', exact: true }).click();
+  await expect(editing).toBeVisible();
+  expect((await storedItem(page, '저장 실패 입력')).item).toBeDefined();
+  page.once('dialog', (dialog) => { void dialog.accept(); });
+  await editing.getByRole('button', { name: '삭제', exact: true }).click();
+  await expect(editing).toBeHidden();
+  expect((await storedItem(page, '저장 실패 입력')).item).toBeUndefined();
+});
+
 test('compact period keeps the selected kind, visible footer and keyboard focus', async ({ page }) => {
   const editor = await openPeriod(page);
   const title = editor.getByRole('textbox', { name: /^제목/ });
@@ -38,9 +218,9 @@ test('compact period keeps the selected kind, visible footer and keyboard focus'
   await expect(editor.getByLabel('시간대')).toBeHidden();
   await expect(editor.getByLabel('하위 할 일 추가')).toBeHidden();
   const bounds = await editor.boundingBox();
-  expect(bounds?.width).toBe(440);
+  expect(bounds?.width).toBe(520);
   expect(bounds?.height).toBeLessThan(570);
-  expect((await title.boundingBox())?.width).toBe((bounds?.width ?? 0) - 48);
+  expect((await title.boundingBox())?.width).toBeGreaterThanOrEqual((bounds?.width ?? 0) - 64);
   expect(await editor.evaluate((element) => {
     const body = element.querySelector('form > div')!;
     return body.scrollHeight === body.clientHeight;
@@ -48,12 +228,12 @@ test('compact period keeps the selected kind, visible footer and keyboard focus'
   const save = editor.getByRole('button', { name: '저장', exact: true });
   const cancel = editor.getByRole('button', { name: '취소', exact: true });
   await expect(editor.getByRole('button', { name: '편집 닫기' })).toHaveCount(0);
-  expect((await save.boundingBox())?.x).toBeLessThan((await cancel.boundingBox())?.x ?? 0);
-  await save.focus();
+  expect((await cancel.boundingBox())?.x).toBeLessThan((await save.boundingBox())?.x ?? 0);
+  await cancel.focus();
   await page.keyboard.press('Tab');
-  await expect(cancel).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
   await expect(save).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(cancel).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(editor).toBeHidden();
   await expect(page.getByRole('button', { name: '수강신청', exact: true })).toBeFocused();
@@ -68,8 +248,7 @@ test('compact period keeps the selected kind, visible footer and keyboard focus'
 test('expanded fields save, survive collapsing, and remain intact when editing a title', async ({ page }) => {
   const editor = await openPeriod(page);
   await editor.getByRole('textbox', { name: /^제목/ }).fill('기간 기능 보존');
-  await editor.getByRole('button', { name: '변경', exact: true }).click();
-  const timeSettings = page.getByRole('dialog', { name: '시간 설정' });
+  const timeSettings = editor;
   await timeSettings.getByLabel('정확한 시각', { exact: true }).check();
   await timeSettings.getByLabel('종료 시각도 기록').check();
   await timeSettings.getByLabel('시작 날짜', { exact: true }).fill('2026-10-07');
@@ -78,7 +257,7 @@ test('expanded fields save, survive collapsing, and remain intact when editing a
   await timeSettings.getByLabel('종료 시각', { exact: true }).fill('17:30');
   await timeSettings.getByText('기기 알림', { exact: true }).click();
   await timeSettings.getByRole('button', { name: '1시간 전' }).click();
-  await timeSettings.getByRole('button', { name: '적용', exact: true }).click();
+  await editor.getByRole('button', { name: /^D-day 표시/ }).click();
   await editor.getByRole('spinbutton').fill('3');
   await editor.getByRole('button', { name: /^하위 할 일 · 완료/ }).click();
   for (let i = 1; i <= 4; i += 1) {
@@ -92,13 +271,13 @@ test('expanded fields save, survive collapsing, and remain intact when editing a
   await editor.getByLabel('하위 할 일 추가', { exact: true }).fill('');
   await editor.getByLabel('신청 완료', { exact: true }).check();
   await editor.getByRole('button', { name: /^하위 할 일 · 완료/ }).click();
-  await editor.getByRole('button', { name: /^추가 설정/ }).click();
+  await editor.getByRole('button', { name: /^부가 정보/ }).click();
   await editor.getByLabel('시간대', { exact: true }).fill('Asia/Seoul');
   await editor.getByLabel(/^메모/).fill('메모와 링크를 접어도 저장');
   await editor.getByLabel(/^관련 링크/).fill('https://example.com/application');
   await expect(editor.getByLabel(/^분류/)).toHaveCount(0);
   await expect(editor.getByLabel('완료', { exact: true })).toHaveCount(0);
-  await editor.getByRole('button', { name: /^추가 설정/ }).click();
+  await editor.getByRole('button', { name: /^부가 정보/ }).click();
   await editor.getByRole('button', { name: '저장', exact: true }).click();
   await expect(editor).toBeHidden();
   const first = await storedItem(page, '기간 기능 보존');
@@ -148,20 +327,17 @@ test('dirty Escape and checklist deletion ask before discarding and cancel prese
 test('timezone errors reveal settings and DST gaps/folds stay resolvable', async ({ page }) => {
   const editor = await openPeriod(page);
   await editor.getByRole('textbox', { name: /^제목/ }).fill('DST 신청');
-  await editor.getByRole('button', { name: '변경', exact: true }).click();
-  const timeSettings = page.getByRole('dialog', { name: '시간 설정' });
+  const timeSettings = editor;
   await timeSettings.getByLabel('정확한 시각', { exact: true }).check();
   await timeSettings.getByLabel('종료 시각도 기록').uncheck();
-  await timeSettings.getByRole('button', { name: '적용', exact: true }).click();
-  await editor.getByRole('button', { name: /^추가 설정/ }).click();
+  await editor.getByRole('button', { name: /^부가 정보/ }).click();
   await editor.getByLabel('시간대', { exact: true }).fill('Invalid/Zone');
-  await editor.getByRole('button', { name: /^추가 설정/ }).click();
+  await editor.getByRole('button', { name: /^부가 정보/ }).click();
   await editor.getByRole('button', { name: '저장', exact: true }).click();
   await expect(editor.getByLabel('시간대', { exact: true })).toBeVisible();
   await expect(editor.getByText('유효한 IANA 시간대를 입력해 주세요.', { exact: true })).toBeVisible();
   await editor.getByLabel('시간대', { exact: true }).fill('America/New_York');
-  await editor.getByRole('button', { name: '변경', exact: true }).click();
-  const resolvedTimeSettings = page.getByRole('dialog', { name: '시간 설정' });
+  const resolvedTimeSettings = editor;
   const dateTrigger = resolvedTimeSettings.getByRole('button', { name: '시작 날짜 달력 선택 열기' });
   await dateTrigger.click();
   const datePicker = page.getByRole('group', { name: '시작 날짜 달력' });
@@ -181,17 +357,14 @@ test('timezone errors reveal settings and DST gaps/folds stay resolvable', async
   await resolvedTimeSettings.getByLabel('시작 날짜', { exact: true }).fill('2026-03-08');
   await resolvedTimeSettings.getByLabel('시작 시각', { exact: true }).fill('02:30');
   await expect(resolvedTimeSettings.getByText('이 날짜에는 입력한 시각이 없습니다. 다른 시각을 선택해 주세요.')).toBeVisible();
-  await resolvedTimeSettings.getByRole('button', { name: '적용', exact: true }).click();
   await editor.getByRole('button', { name: '저장', exact: true }).click();
   await expect(editor).toBeVisible();
-  await editor.getByRole('button', { name: '변경', exact: true }).click();
-  const foldSettings = page.getByRole('dialog', { name: '시간 설정' });
+  const foldSettings = editor;
   await foldSettings.getByLabel('시작 날짜', { exact: true }).fill('2026-11-01');
   await foldSettings.getByLabel('시작 시각', { exact: true }).fill('01:30');
   await expect(foldSettings.getByLabel('첫 번째 시각 (-04:00)')).toBeVisible();
   await expect(foldSettings.getByLabel('두 번째 시각 (-05:00)')).toBeVisible();
   await foldSettings.getByLabel('두 번째 시각 (-05:00)').check();
-  await foldSettings.getByRole('button', { name: '적용', exact: true }).click();
   await editor.getByRole('button', { name: '저장', exact: true }).click();
   await expect(editor).toBeHidden();
   expect((await storedItem(page, 'DST 신청')).item).toMatchObject({ timing: { type: 'time', startAt: '2026-11-01T06:30:00.000Z', endAt: null, timeZone: 'America/New_York' } });
@@ -200,15 +373,14 @@ test('timezone errors reveal settings and DST gaps/folds stay resolvable', async
 test('deadline retains optional start, countdown and completion', async ({ page }) => {
   const editor = await openPeriod(page, 'deadline');
   await editor.getByRole('textbox', { name: /^제목/ }).fill('기간 내 마감');
-  await editor.getByRole('button', { name: '변경', exact: true }).click();
-  const timeSettings = page.getByRole('dialog', { name: '시간 설정' });
+  const timeSettings = editor;
   await timeSettings.getByLabel('날짜', { exact: true }).check();
   await timeSettings.getByLabel('기간 시작일도 기록').uncheck();
   await timeSettings.getByLabel('기간 시작일도 기록').check();
   await timeSettings.getByLabel('시작일', { exact: true }).fill('2026-10-06');
   await timeSettings.getByLabel('종료일', { exact: true }).fill('2026-10-12');
-  await timeSettings.getByRole('button', { name: '적용', exact: true }).click();
-  await editor.getByLabel('시작 카운트다운 표시', { exact: true }).check();
+  await editor.getByRole('button', { name: /^D-day 표시/ }).click();
+  await editor.getByLabel('남은 시간 표시', { exact: true }).check();
   await editor.getByRole('spinbutton').fill('2');
   await editor.getByRole('button', { name: /^하위 할 일 · 완료/ }).click();
   await editor.getByLabel('제출 완료', { exact: true }).check();
@@ -217,12 +389,12 @@ test('deadline retains optional start, countdown and completion', async ({ page 
   expect((await storedItem(page, '기간 내 마감')).item).toMatchObject({ kind: 'deadline', timing: { type: 'date', startDate: '2026-10-06', endDate: '2026-10-12' }, startCountdown: { enabled: true, daysBefore: 2 }, completion: 'completed' });
 });
 
-test('long form has one body scroller and a reachable footer on desktop and mobile', async ({ page }) => {
+test('long form has one body scroller and a reachable footer at four desktop window sizes', async ({ page }) => {
   const editor = await openPeriod(page);
   await editor.getByRole('button', { name: /^하위 할 일 · 완료/ }).click();
-  await editor.getByRole('button', { name: /^추가 설정/ }).click();
+  await editor.getByRole('button', { name: /^부가 정보/ }).click();
   await editor.getByLabel(/^메모/).fill('긴 메모\n'.repeat(100));
-  for (const viewport of [{ width: 1000, height: 780 }, { width: 390, height: 844 }]) {
+  for (const viewport of [{ width: 800, height: 600 }, { width: 900, height: 700 }, { width: 1000, height: 780 }, { width: 1100, height: 800 }]) {
     await page.setViewportSize(viewport);
     const geometry = await editor.evaluate((element) => {
       const body = element.querySelector('form > div')!;
@@ -255,7 +427,11 @@ test('weekly calendar keeps navigation, late hours and empty slot prefill', asyn
   const firstTimeLabelBounds = await firstTimeLabel.boundingBox();
   expect(scrollerBounds).not.toBeNull();
   expect(firstTimeLabelBounds).not.toBeNull();
-  expect(firstTimeLabelBounds!.y).toBeGreaterThanOrEqual(scrollerBounds!.y);
+  // The current week opens near the current time; the earlier 08:00 row stays available by scrolling up.
+  expect(await scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(firstTimeLabelBounds!.y).toBeLessThan(scrollerBounds!.y);
+  const currentHourLabelBounds = await page.getByText('11:00', { exact: true }).boundingBox();
+  expect(currentHourLabelBounds?.y).toBeGreaterThanOrEqual(scrollerBounds!.y);
   const firstColumn = page.locator('section[aria-label="시간 일정"] > div:nth-of-type(2) > div').first();
   const firstHourLine = page.locator('section[aria-label="시간 일정"] [class*="hourLine"][data-major="true"]').first();
   const secondHourLine = page.locator('section[aria-label="시간 일정"] [class*="hourLine"][data-major="false"]').first();
@@ -270,16 +446,13 @@ test('weekly calendar keeps navigation, late hours and empty slot prefill', asyn
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await page.keyboard.press('Home');
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(0);
-  const emptySlot = page.getByLabel('2026-10-09 일정 추가', { exact: true });
+  const emptySlot = page.getByRole('button', { name: '2026-10-09 08:00 일정 추가', exact: true });
   const emptySlotBounds = await emptySlot.boundingBox();
   expect(emptySlotBounds).not.toBeNull();
   await emptySlot.click({ position: { x: 50, y: emptySlotBounds!.height * (4.5 / 14) } });
   const editor = page.getByRole('dialog');
   const timeSettings = editor.getByRole('region', { name: '일정 시간 설정' });
-  const revealButton = timeSettings.getByRole('button', { name: /시간 설정/ });
-  const timePanel = editor.getByRole('region', { name: '일정 시간 상세' });
-  await revealButton.click();
-  await expect(revealButton).toHaveAttribute('aria-expanded', 'true');
+  const timePanel = timeSettings;
   await expect(timePanel.getByLabel('시작 날짜', { exact: true })).toHaveValue('2026. 10. 09.');
   await expect(timePanel.getByLabel('시작 시각', { exact: true })).toHaveValue('12:30');
   await expect(timePanel.getByLabel('종료 시각', { exact: true })).toHaveValue('13:00');
@@ -295,10 +468,66 @@ test('weekly calendar keeps navigation, late hours and empty slot prefill', asyn
   await expect(scroller).toBeVisible();
 });
 
+test('weekly calendar adds an event from the keyboard-selected date and time', async ({ page }) => {
+  await page.goto('/calendar/?preview=design');
+  const slot = page.getByRole('button', { name: '2026-10-09 08:00 일정 추가', exact: true });
+  await slot.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(slot).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  const adjustedSlot = page.getByRole('button', { name: '2026-10-09 08:15 일정 추가', exact: true });
+  await expect(adjustedSlot).toBeFocused();
+  const timeMarker = page.locator('[data-keyboard-time-marker]');
+  await expect(timeMarker).toBeVisible();
+  await expect(timeMarker).toContainText('08:15');
+  await expect(timeMarker).toContainText('↑↓ 이동 · Enter 추가');
+
+  const nextDateSlot = page.getByRole('button', { name: '2026-10-10 08:00 일정 추가', exact: true });
+  await nextDateSlot.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('button', { name: '2026-10-10 08:15 일정 추가', exact: true })).toBeFocused();
+  await expect(adjustedSlot).toHaveAccessibleName('2026-10-09 08:15 일정 추가');
+
+  await adjustedSlot.focus();
+  await page.keyboard.press('Enter');
+
+  const editor = page.getByRole('dialog');
+  const timing = editor.getByRole('region', { name: '일정 시간 설정' });
+  await expect(timing.getByLabel('시작 날짜', { exact: true })).toHaveValue('2026. 10. 09.');
+  await expect(timing.getByLabel('시작 시각', { exact: true })).toHaveValue('08:15');
+});
+
+test('weekly calendar clamps keyboard-added events to the final 15-minute slot', async ({ page }) => {
+  await page.goto('/calendar/?preview=design');
+  const slot = page.getByRole('button', { name: '2026-10-10 08:00 일정 추가', exact: true });
+  await slot.focus();
+  for (let step = 0; step < 55; step += 1) await page.keyboard.press('ArrowDown');
+
+  const finalSlot = page.getByRole('button', { name: '2026-10-10 21:45 일정 추가', exact: true });
+  await expect(finalSlot).toBeFocused();
+  const timeMarker = page.locator('[data-keyboard-time-marker]');
+  await expect(timeMarker).toBeVisible();
+  await expect(timeMarker).toContainText('21:45');
+  const timeViewportBounds = await page.getByRole('region', { name: '시간표 스크롤 영역' }).boundingBox();
+  const markerBounds = await timeMarker.boundingBox();
+  expect(timeViewportBounds).not.toBeNull();
+  expect(markerBounds?.y).toBeGreaterThanOrEqual(timeViewportBounds!.y);
+  expect((markerBounds?.y ?? 0) + (markerBounds?.height ?? 0)).toBeLessThanOrEqual(timeViewportBounds!.y + timeViewportBounds!.height);
+  await page.keyboard.press('ArrowDown');
+  await expect(finalSlot).toBeFocused();
+  await page.keyboard.press('Space');
+
+  const timing = page.getByRole('dialog').getByRole('region', { name: '일정 시간 설정' });
+  await expect(timing.getByLabel('시작 날짜', { exact: true })).toHaveValue('2026. 10. 10.');
+  await expect(timing.getByLabel('시작 시각', { exact: true })).toHaveValue('21:45');
+});
+
 test('weekly calendar keeps the home content width on desktop and mobile', async ({ page }) => {
-  const homePage = page.locator('div[class*="HomeExperience_page"]');
+  const homePage = page.locator('main[class*="HomeExperience_page"]');
   await expect(homePage).toBeVisible();
-  const homeWidth = (await homePage.boundingBox())?.width;
+  await expect(homePage).toHaveCSS('width', '840px');
+  await expect(homePage).toHaveCSS('padding-top', '0px');
+  await expect(homePage).toHaveCSS('padding-bottom', '24px');
   const homePadding = await homePage.evaluate((element) => {
     const style = getComputedStyle(element);
     return [style.paddingTop, style.paddingBottom];
@@ -306,64 +535,62 @@ test('weekly calendar keeps the home content width on desktop and mobile', async
   await page.goto('/calendar/?preview=design');
   const weekPage = page.locator('main[data-view="week"]');
   await expect(weekPage).toBeVisible();
-  expect((await weekPage.boundingBox())?.width).toBe(homeWidth);
+  await expect(weekPage).toHaveCSS('width', '840px');
+  await expect(weekPage).toHaveCSS('padding-top', '28px');
+  await expect(weekPage).toHaveCSS('padding-bottom', '12px');
   const weekPadding = await weekPage.evaluate((element) => {
     const style = getComputedStyle(element);
     return [style.paddingTop, style.paddingBottom];
   });
-  expect(weekPadding).toEqual(homePadding);
+  expect(homePadding).toEqual(['0px', '24px']);
+  expect(weekPadding).toEqual(['28px', '12px']);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?preview=design');
-  const mobileHomePage = page.locator('div[class*="HomeExperience_page"]');
-  const mobileHomeWidth = (await mobileHomePage.boundingBox())?.width;
+  const mobileHomePage = page.locator('main[class*="HomeExperience_page"]');
+  await expect(mobileHomePage).toBeVisible();
+  await expect(mobileHomePage).toHaveCSS('width', '358px');
+  await expect(mobileHomePage).toHaveCSS('padding-top', '10px');
+  await expect(mobileHomePage).toHaveCSS('padding-bottom', '24px');
   const mobileHomePadding = await mobileHomePage.evaluate((element) => {
     const style = getComputedStyle(element);
     return [style.paddingTop, style.paddingBottom];
   });
   await page.goto('/calendar/?preview=design');
   const mobileWeekPage = page.locator('main[data-view="week"]');
-  expect((await mobileWeekPage.boundingBox())?.width).toBe(mobileHomeWidth);
+  await expect(mobileWeekPage).toHaveCSS('width', '358px');
+  await expect(mobileWeekPage).toHaveCSS('padding-top', '82px');
+  await expect(mobileWeekPage).toHaveCSS('padding-bottom', '24px');
   expect(await mobileWeekPage.evaluate((element) => {
     const style = getComputedStyle(element);
     return [style.paddingTop, style.paddingBottom];
-  })).toEqual(mobileHomePadding);
+  })).toEqual(['82px', '24px']);
+  expect(mobileHomePadding).toEqual(['10px', '24px']);
 });
 
-test('calendar event edits preserve existing local reminder and dates with settings folded', async ({ page }) => {
+test('calendar event edits preserve countdown and dates with display settings folded', async ({ page }) => {
   await page.goto('/calendar/?preview=design');
   await page.getByRole('button', { name: /^연구실 세미나 / }).click();
   const details = page.getByRole('dialog', { name: '연구실 세미나' });
-  await expect(details.getByRole('heading', { name: '연구실 세미나', exact: true })).toBeVisible();
   await expect(details.getByRole('img', { name: '시작 예정' })).toBeVisible();
-  await expect(details.getByRole('button', { name: '상세 닫기' })).toHaveCount(0);
   await expect(details).toContainText('10.06 13:00');
   await details.getByRole('button', { name: '수정', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '일정 수정' });
-  await expect(editor.getByRole('button', { name: '편집 닫기' })).toHaveCount(0);
-  const timeSettings = editor.getByRole('region', { name: '일정 시간 설정' });
-  const revealButton = timeSettings.getByRole('button', { name: /시간 설정/ });
-  const timePanel = editor.locator('#event-time-reveal');
-  await revealButton.click();
-  await expect(revealButton).toHaveAttribute('aria-expanded', 'true');
-  await expect(timePanel.getByLabel('알림')).toHaveCount(0);
-  await expect(timePanel.getByLabel('기준 시각')).toHaveCount(0);
-  await expect(timePanel.getByLabel('카운트다운 일수')).toHaveCount(0);
-  await expect(timePanel.getByLabel('시작 카운트다운')).not.toBeChecked();
-  await timePanel.getByText('시작 카운트다운', { exact: true }).click();
+  await expect(editor.getByLabel('시작 날짜', { exact: true })).toBeVisible();
+  await expect(editor.getByLabel('기기 알림')).toHaveCount(0);
+  const displayToggle = editor.getByRole('button', { name: /^D-day 표시/ });
+  await displayToggle.click();
+  await expect(editor.getByLabel('남은 시간 표시', { exact: true })).not.toBeChecked();
+  await editor.getByLabel('남은 시간 표시', { exact: true }).check();
   await editor.getByRole('button', { name: '저장', exact: true }).click();
   const first = await storedItem(page, '연구실 세미나');
   expect(first.reminder).toBeUndefined();
   expect(first.item).toMatchObject({ countdown: { enabled: true, daysBefore: 1, reference: 'start' } });
   await page.getByRole('button', { name: /^연구실 세미나 / }).click();
   await page.getByRole('dialog', { name: '연구실 세미나' }).getByRole('button', { name: '수정', exact: true }).click();
-  const editedTimeSettings = editor.getByRole('region', { name: '일정 시간 설정' });
-  const editedTimePanel = editor.locator('#event-time-reveal');
-  const editedRevealButton = editedTimeSettings.getByRole('button', { name: /시간 설정/ });
-  await editedRevealButton.click();
-  await expect(editedRevealButton).toHaveAttribute('aria-expanded', 'true');
-  await expect(editedTimePanel.getByLabel('카운트다운 기준 시각')).toHaveValue('start');
-  await editedRevealButton.click();
-  await editor.getByRole('textbox', { name: '일정 이름' }).fill('알림 유지 세미나');
+  await displayToggle.click();
+  await expect(editor.getByLabel('카운트다운 기준', { exact: true })).toHaveValue('start');
+  await displayToggle.click();
+  await editor.getByLabel('일정 이름', { exact: true }).fill('알림 유지 세미나');
   await editor.getByRole('button', { name: '저장', exact: true }).click();
   expect(await storedItem(page, '알림 유지 세미나')).toEqual({ ...first, item: { ...first.item, title: '알림 유지 세미나' } });
   await expect(page.getByRole('button', { name: /^알림 유지 세미나 / })).toBeFocused();
@@ -378,8 +605,8 @@ test('task time and reminder expand inline without a popup or task completion co
   await expect(editor.getByLabel('완료', { exact: true })).toHaveCount(0);
   await expect(editor.getByRole('combobox', { name: '분류' })).toBeVisible();
   await expect(editor.getByText('추가 설정', { exact: true })).toHaveCount(0);
-  await expect(editor.getByLabel('시간대', { exact: true })).toHaveCount(0);
-  await expect(editor.getByLabel(/^관련 링크/)).toBeVisible();
+  await expect(editor.getByLabel('시간대', { exact: true })).toBeHidden();
+  await expect(editor.getByLabel(/^관련 링크/)).toBeHidden();
   await expect(editor.getByText('메모 선택')).toHaveCount(0);
   const timeToggle = editor.getByRole('checkbox', { name: '시간 설정' });
   await expect(timeToggle).not.toBeChecked();
@@ -393,7 +620,7 @@ test('task time and reminder expand inline without a popup or task completion co
   await editor.getByRole('button', { name: '30분 전' }).click();
   const saveButton = editor.getByRole('button', { name: '저장', exact: true });
   const cancelButton = editor.getByRole('button', { name: '취소', exact: true });
-  expect((await saveButton.boundingBox())?.x).toBeLessThan((await cancelButton.boundingBox())?.x ?? 0);
+  expect((await cancelButton.boundingBox())?.x).toBeLessThan((await saveButton.boundingBox())?.x ?? 0);
   await editor.getByRole('button', { name: '저장', exact: true }).click();
   expect(await storedItem(page, '시각과 알림 설정')).toMatchObject({
     item: { kind: 'task', timing: { type: 'time', endAt: '2026-10-06T00:00:00.000Z' } },
@@ -401,120 +628,75 @@ test('task time and reminder expand inline without a popup or task completion co
   });
 });
 
-test('header titles edit in place and event time options open a side panel', async ({ page }) => {
-  const logo = page.getByRole('link', { name: 'Todo 홈' });
+test('home menu aligns with the logo row and event time fields stay in one column', async ({ page }) => {
+  const logo = page.getByTestId('todo-logo');
   const menu = page.getByRole('button', { name: '메뉴' });
-  const logoBox = await logo.boundingBox();
-  const menuBox = await menu.boundingBox();
-  expect(Math.abs((logoBox?.y ?? 0) + (logoBox?.height ?? 0) / 2 - ((menuBox?.y ?? 0) + (menuBox?.height ?? 0) / 2))).toBeLessThanOrEqual(5);
-
-  await page.getByRole('button', { name: '메뉴' }).click();
-  await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
+  await expect(logo).toBeVisible();
+  await expect(menu).toBeVisible();
+  await expect.poll(async () => {
+    const logoBounds = await logo.boundingBox();
+    const menuBounds = await menu.boundingBox();
+    if (!logoBounds || !menuBounds) return Number.POSITIVE_INFINITY;
+    return Math.abs(logoBounds.y + logoBounds.height / 2 - (menuBounds.y + menuBounds.height / 2));
+  }).toBeLessThanOrEqual(5);
+  await menu.click(); await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '새 일정' });
-  await expect(editor.getByRole('heading', { name: '새 일정' })).toBeVisible();
-  const eventTitle = editor.getByRole('textbox', { name: '일정 이름' });
-  await expect(eventTitle).toHaveValue('새 일정');
+  const eventTitle = editor.getByLabel('일정 이름', { exact: true });
+  await expect(eventTitle).toHaveValue('');
   await eventTitle.hover();
-  expect(await eventTitle.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-  expect(await eventTitle.evaluate((element) => getComputedStyle(element).borderBottomWidth)).toBe('1px');
-  expect(await eventTitle.evaluate((element) => getComputedStyle(element).borderRadius)).toBe('0px');
+  await expect(eventTitle).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(eventTitle).toHaveCSS('border-bottom-width', '1px');
+  await expect(eventTitle).toHaveCSS('border-radius', '0px');
   await expect(editor.getByLabel('제목', { exact: true })).toHaveCount(0);
-  await expect(editor.getByRole('button', { name: '편집 닫기' })).toHaveCount(0);
-  await expect(editor.getByText('추가 설정', { exact: true })).toHaveCount(0);
-  await expect(editor.getByLabel('시간대', { exact: true })).toHaveCount(0);
-  const timeSettings = editor.getByRole('region', { name: '일정 시간 설정' });
-  const timePanel = editor.locator('#event-time-reveal');
-  const repeatSwitch = editor.getByRole('radiogroup', { name: '반복' }).getByRole('radio', { name: '매주 반복' });
-  await timeSettings.getByRole('button', { name: /시간 설정/ }).click();
-  await timePanel.getByLabel('상단 진행 카드 표시').check();
-  const allDaySwitch = timePanel.getByRole('radiogroup', { name: '시간 방식' }).getByRole('radio', { name: '종일' });
-  await expect(repeatSwitch).toHaveAttribute('aria-checked', 'false');
-  await expect(allDaySwitch).toHaveAttribute('aria-checked', 'false');
-  await repeatSwitch.click();
-  await expect(repeatSwitch).toHaveAttribute('aria-checked', 'true');
+  await expect(editor.getByLabel('시간대', { exact: true })).toBeHidden();
+  await editor.getByLabel('시작 날짜', { exact: true }).fill('2026-10-07');
+  await editor.getByLabel('종료 날짜', { exact: true }).fill('2026-10-07');
+  await editor.getByLabel('시작 시각', { exact: true }).fill('09:00');
+  await editor.getByLabel('종료 시각', { exact: true }).fill('09:30');
+  await editor.getByRole('button', { name: /^반복 설정/ }).click();
+  const repeatSwitch = editor.getByRole('radio', { name: '매주 반복' });
+  await repeatSwitch.click(); await expect(repeatSwitch).toHaveAttribute('aria-checked', 'true');
   await expect(editor.getByRole('group', { name: '반복 요일' })).toBeVisible();
-  await repeatSwitch.click();
-  await allDaySwitch.click();
-  await expect(allDaySwitch).toHaveAttribute('aria-checked', 'true');
-  await timePanel.getByRole('radiogroup', { name: '시간 방식' }).getByRole('radio', { name: '정확한 시각' }).click();
-  await expect(allDaySwitch).toHaveAttribute('aria-checked', 'false');
-  await expect(timeSettings.getByRole('button', { name: /시간 설정/ })).toHaveAttribute('aria-expanded', 'true');
-  await expect.poll(() => editor.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(600);
-  await expect(page.getByRole('dialog', { name: '시간 설정' })).toHaveCount(0);
-  await expect(timePanel.getByLabel('정확한 시각', { exact: true })).toHaveCount(0);
-  await expect(timePanel.getByLabel('기준 시각')).toHaveCount(0);
-  await expect(timePanel.getByLabel('카운트다운 일수')).toHaveCount(0);
-  await timePanel.getByText('시작 카운트다운', { exact: true }).click();
-  await timePanel.getByLabel('시작 날짜', { exact: true }).fill('2026-10-07');
-  await timePanel.getByLabel('시작 시각', { exact: true }).fill('09:00');
-  await timePanel.getByLabel('종료 날짜', { exact: true }).fill('2026-10-07');
-  await timePanel.getByLabel('종료 시각', { exact: true }).fill('09:30');
-  await editor.getByRole('textbox', { name: '일정 이름' }).fill('기준 시각이 있는 일정');
+  await editor.getByRole('radio', { name: '한 번' }).click();
+  await editor.getByRole('radio', { name: '종일' }).click();
+  await expect(editor.getByRole('radio', { name: '종일' })).toHaveAttribute('aria-checked', 'true');
+  await editor.getByRole('radio', { name: '정확한 시각' }).click();
+  await editor.getByRole('button', { name: /^D-day 표시/ }).click();
+  await editor.getByLabel('홈 카드 표시', { exact: true }).check();
+  await editor.getByLabel('남은 시간 표시', { exact: true }).check();
+  expect((await editor.boundingBox())?.width).toBe(520);
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await eventTitle.fill('기준 시각이 있는 일정');
   await editor.getByRole('button', { name: '저장', exact: true }).click();
-  expect((await storedItem(page, '기준 시각이 있는 일정')).item).toMatchObject({
-    kind: 'event',
-    timing: { type: 'time', startAt: '2026-10-07T00:00:00.000Z', endAt: '2026-10-07T00:30:00.000Z' },
-    countdown: { enabled: true, daysBefore: 1, reference: 'start' },
-  });
-  await expect(page.getByRole('region', { name: '선택한 날짜의 할 일' }).getByText('기준 시각이 있는 일정', { exact: true })).toHaveCount(0);
+  expect((await storedItem(page, '기준 시각이 있는 일정')).item).toMatchObject({ kind: 'event', timing: { type: 'time', startAt: '2026-10-07T00:00:00.000Z', endAt: '2026-10-07T00:30:00.000Z' }, countdown: { enabled: true, daysBefore: 1, reference: 'start' } });
+  await expect(page.getByRole('region', { name: '선택한 날짜의 일정과 할 일' }).getByText('기준 시각이 있는 일정', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('region', { name: '임박한 일정' }).getByRole('article', { name: '기준 시각이 있는 일정' })).toBeVisible();
-
-  await page.getByRole('button', { name: '메뉴' }).click();
-  await page.getByRole('menuitem', { name: '디데이 정렬' }).click();
-  const sortDialog = page.getByRole('dialog', { name: '디데이 정렬' });
-  await expect(sortDialog.getByRole('listitem', { name: /기준 시각이 있는 일정/ })).toBeVisible();
+  await menu.click(); await page.getByRole('menuitem', { name: '디데이 정렬' }).click();
+  await expect(page.getByRole('dialog', { name: '디데이 정렬' }).getByRole('listitem', { name: /기준 시각이 있는 일정/ })).toBeVisible();
 });
 
-test('event editor aligns color and repeat controls with compact, ordered time fields', async ({ page }) => {
-  await page.getByRole('button', { name: '메뉴' }).click();
-  await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
+test('event editor aligns color, repeat and ordered date-time fields in a fixed column', async ({ page }) => {
+  await page.getByRole('button', { name: '메뉴' }).click(); await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '새 일정' });
   const palette = editor.getByRole('group', { name: '일정 색상' });
-  const paletteLabel = palette.getByText('일정 색상', { exact: true }).last();
-  const firstColor = palette.getByRole('button', { name: '일정 색상 1' });
-  const paletteLabelBox = await paletteLabel.boundingBox();
-  const firstColorBox = await firstColor.boundingBox();
-  expect(paletteLabelBox).not.toBeNull();
-  expect(firstColorBox).not.toBeNull();
-  expect(Math.abs((paletteLabelBox!.y + paletteLabelBox!.height / 2) - (firstColorBox!.y + firstColorBox!.height / 2))).toBeLessThan(8);
-
-  const timeSettings = editor.getByRole('region', { name: '일정 시간 설정' });
-  await timeSettings.getByRole('button', { name: /시간 설정/ }).click();
-  const timePanel = editor.getByRole('region', { name: '일정 시간 상세' });
-  const repeatControl = timePanel.getByRole('radiogroup', { name: '반복' });
-  await expect(repeatControl).toBeVisible();
-  await repeatControl.getByRole('radio', { name: '매주 반복' }).click();
-  const weekdayButtons = timePanel.getByRole('group', { name: '반복 요일' }).getByRole('button');
-  const weekdayTops = await weekdayButtons.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top));
-  expect(Math.max(...weekdayTops) - Math.min(...weekdayTops)).toBeLessThan(2);
-
-  await expect(timePanel).toHaveCSS('border-left-style', 'solid');
-  await expect(timePanel).toHaveCSS('border-left-width', '1px');
-  const panelMotion = await timePanel.evaluate((element) => {
-    const style = getComputedStyle(element);
-    const durations = style.transitionDuration.split(',').map((duration) => {
-      const value = Number.parseFloat(duration);
-      return duration.includes('ms') ? value : value * 1000;
-    });
-    return { properties: style.transitionProperty.split(',').map((property) => property.trim()), longestDuration: Math.max(...durations) };
-  });
-  expect(panelMotion.properties).toEqual(['opacity', 'transform']);
-  expect(panelMotion.longestDuration).toBeLessThanOrEqual(200);
-  const startDate = await timePanel.getByLabel('시작 날짜', { exact: true }).boundingBox();
-  const startTime = await timePanel.getByLabel('시작 시각', { exact: true }).boundingBox();
-  const endDate = await timePanel.getByLabel('종료 날짜', { exact: true }).boundingBox();
-  const endTime = await timePanel.getByLabel('종료 시각', { exact: true }).boundingBox();
-  expect(startDate).not.toBeNull();
-  expect(startTime).not.toBeNull();
-  expect(endDate).not.toBeNull();
-  expect(endTime).not.toBeNull();
+  const label = await palette.getByText('일정 색상', { exact: true }).last().boundingBox();
+  const color = await palette.getByRole('button', { name: '일정 색상 1' }).boundingBox();
+  expect(Math.abs((label!.y + label!.height / 2) - (color!.y + color!.height / 2))).toBeLessThan(8);
+  const startDate = await editor.getByLabel('시작 날짜', { exact: true }).boundingBox();
+  const startTime = await editor.getByLabel('시작 시각', { exact: true }).boundingBox();
+  const endDate = await editor.getByLabel('종료 날짜', { exact: true }).boundingBox();
+  const endTime = await editor.getByLabel('종료 시각', { exact: true }).boundingBox();
   expect(Math.abs(startDate!.y - startTime!.y)).toBeLessThan(2);
-  expect(startDate!.x).toBeLessThan(startTime!.x);
-  expect(startTime!.y).toBeLessThan(endDate!.y);
+  expect(startDate!.x).toBeLessThan(startTime!.x); expect(startTime!.y).toBeLessThan(endDate!.y);
   expect(Math.abs(endDate!.y - endTime!.y)).toBeLessThan(2);
-  await expect(timePanel.getByRole('group', { name: '시작' })).toHaveCSS('border-style', 'none');
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect(timePanel).toHaveCSS('transition-property', 'none');
+  await expect(editor.getByRole('group', { name: '시작', exact: true })).toHaveCSS('border-style', 'none');
+  const repeat = editor.getByRole('button', { name: /^반복 설정/ });
+  await expect(repeat).toContainText('한 번'); await repeat.click();
+  await expect(repeat).not.toContainText('한 번');
+  await editor.getByRole('radio', { name: '매주 반복' }).click();
+  const tops = await editor.getByRole('group', { name: '반복 요일' }).getByRole('button').evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top));
+  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(2);
+  expect((await editor.boundingBox())?.width).toBe(520);
 });
 
 test('calendar event details, category settings and D-day sort use the same compact width', async ({ page }) => {
@@ -538,87 +720,49 @@ test('calendar event details, category settings and D-day sort use the same comp
   expect((await categoryDialog.boundingBox())?.width).toBe(sortWidth);
 });
 
-test('new schedule is a progress card and sortable item, never a daily task', async ({ page }) => {
+test('new schedule can be a progress card and sortable item, separate from daily tasks', async ({ page }) => {
   await page.getByRole('button', { name: '메뉴' }).click();
-  const menuItems = page.getByRole('menuitem');
-  await expect(menuItems).toHaveText(['새 할 일', '새 일정', '디데이 정렬', '카테고리 설정']);
+  await expect(page.getByRole('menuitem')).toHaveText(['새 할 일', '새 일정', '디데이 정렬', '카테고리 설정']);
   await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
-
   const editor = page.getByRole('dialog', { name: '새 일정' });
-  await editor.getByRole('textbox', { name: '일정 이름' }).fill('오늘의 새 일정');
-  const timeSettings = editor.getByRole('region', { name: '일정 시간 설정' });
-  const revealToggle = timeSettings.getByRole('button', { name: /시간 설정/ });
-  const timePanel = editor.locator('#event-time-reveal');
-  await expect(revealToggle).toHaveAttribute('aria-expanded', 'false');
-  await revealToggle.click();
-  await expect(revealToggle).toHaveAttribute('aria-expanded', 'true');
-  const progressCardSwitch = timePanel.getByLabel('상단 진행 카드 표시');
-  await expect(progressCardSwitch).not.toBeChecked();
-  await progressCardSwitch.check();
-  await expect(page.getByRole('dialog', { name: '시간 설정' })).toHaveCount(0);
-  await expect(timePanel.getByLabel('시작 날짜 달력 선택 열기')).toBeVisible();
-  await expect(timePanel.getByLabel('시작 시각 시각 선택 열기')).toBeVisible();
-  await expect(timePanel.getByLabel('시작 시각', { exact: true })).toHaveValue('12:30');
-  await revealToggle.click();
-  await expect(revealToggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(timePanel).toHaveAttribute('aria-hidden', 'true');
-  await expect(timePanel).toBeHidden();
+  await editor.getByLabel('일정 이름', { exact: true }).fill('오늘의 새 일정');
+  await expect(editor.getByLabel('시작 시각', { exact: true })).toHaveValue('12:30');
+  await expect(editor.getByLabel('시작 날짜 달력 선택 열기')).toBeVisible();
+  await expect(editor.getByLabel('시작 시각 시각 선택 열기')).toBeVisible();
+  const display = editor.getByRole('button', { name: /^D-day 표시/ });
+  await expect(display).toHaveAttribute('aria-expanded', 'false'); await display.click();
+  await expect(editor.getByLabel('홈 카드 표시', { exact: true })).not.toBeChecked();
+  await editor.getByLabel('홈 카드 표시', { exact: true }).check();
+  await display.click(); await expect(editor.getByLabel('홈 카드 표시', { exact: true })).toBeHidden();
   await editor.getByRole('button', { name: '저장', exact: true }).click();
-
-  expect((await storedItem(page, '오늘의 새 일정')).item).toMatchObject({ kind: 'event', title: '오늘의 새 일정', showInProgressSummary: true });
+  expect((await storedItem(page, '오늘의 새 일정')).item).toMatchObject({ kind: 'event', showInProgressSummary: true });
   await expect(page.getByRole('region', { name: '임박한 일정' }).getByRole('article', { name: '오늘의 새 일정' })).toBeVisible();
-  await expect(page.getByRole('region', { name: '선택한 날짜의 할 일' }).getByText('오늘의 새 일정', { exact: true })).toHaveCount(0);
-
-  await page.getByRole('button', { name: '메뉴' }).click();
-  await page.getByRole('menuitem', { name: '디데이 정렬', exact: true }).click();
+  const selected = page.getByRole('region', { name: '선택한 날짜의 일정과 할 일' });
+  await expect(selected.getByRole('region', { name: '일정' }).getByText('오늘의 새 일정', { exact: true })).toBeVisible();
+  await expect(selected.getByRole('region', { name: '할 일' }).getByText('오늘의 새 일정', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '메뉴' }).click(); await page.getByRole('menuitem', { name: '디데이 정렬', exact: true }).click();
   await expect(page.getByRole('dialog', { name: '디데이 정렬' }).getByRole('listitem', { name: /오늘의 새 일정/ })).toBeVisible();
 });
 
-test('schedule options align repeat controls and time settings open beside the editor', async ({ page }) => {
-  await page.getByRole('button', { name: '메뉴' }).click();
-  await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
+test('schedule repeat honors weekday order and expands below basic dates without widening', async ({ page }) => {
+  await page.getByRole('button', { name: '메뉴' }).click(); await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '새 일정' });
-  const initialWidth = (await editor.boundingBox())?.width ?? 0;
-
-  const timeSettings = editor.getByRole('region', { name: '일정 시간 설정' });
-  const timeSettingsButton = timeSettings.getByRole('button', { name: /시간 설정/ });
-  const timePanel = editor.locator('#event-time-reveal');
-  await expect(timePanel).toHaveAttribute('aria-hidden', 'true');
-  await timeSettingsButton.click();
-  await expect(timePanel).toBeVisible();
-
-  const repeatOptions = timePanel.getByRole('radiogroup', { name: '반복' });
-  const once = repeatOptions.getByRole('radio', { name: '한 번' });
-  const weekly = repeatOptions.getByRole('radio', { name: '매주 반복' });
-  await expect(once).toHaveAttribute('aria-checked', 'true');
-  await weekly.click();
-  await expect(weekly).toHaveAttribute('aria-checked', 'true');
-  await expect(once).toHaveAttribute('aria-checked', 'false');
-  const repeatLabel = timePanel.getByText('반복', { exact: true });
-  const repeatLabelBox = await repeatLabel.boundingBox();
-  const repeatControlsBox = await repeatOptions.boundingBox();
-  const weekdayGroup = timePanel.getByRole('group', { name: '반복 요일' });
-  await expect(weekdayGroup).toBeVisible();
-  await expect(weekdayGroup.getByRole('button')).toHaveText(['월', '화', '수', '목', '금', '토', '일']);
-  const weekdayBox = await weekdayGroup.boundingBox();
-  expect(Math.abs((repeatLabelBox?.y ?? 0) + (repeatLabelBox?.height ?? 0) / 2 - ((repeatControlsBox?.y ?? 0) + (repeatControlsBox?.height ?? 0) / 2))).toBeLessThanOrEqual(4);
-  expect(weekdayBox?.y ?? 0).toBeGreaterThan(repeatControlsBox?.y ?? 0);
-
-  const eventTitle = editor.getByRole('textbox', { name: '일정 이름' });
-  const titleBoxBefore = await eventTitle.boundingBox();
-  const timingOptions = timePanel.getByRole('radiogroup', { name: '시간 방식' });
-  const allDay = timingOptions.getByRole('radio', { name: '종일' });
-  await allDay.click();
-  await expect(allDay).toHaveAttribute('aria-checked', 'true');
-
-  await expect(editor).toHaveAttribute('data-expanded', 'true');
-  expect((await editor.boundingBox())?.width).toBeGreaterThan(initialWidth);
-  const titleBoxAfter = await eventTitle.boundingBox();
-  const timePanelBox = await timePanel.boundingBox();
-  expect(Math.abs((titleBoxAfter?.width ?? 0) - (titleBoxBefore?.width ?? 0))).toBeLessThanOrEqual(4);
-  expect(timePanelBox?.x ?? 0).toBeGreaterThan((titleBoxAfter?.x ?? 0) + (titleBoxAfter?.width ?? 0));
-  await expect(timePanel.getByLabel('시작일 달력 선택 열기')).toBeVisible();
-  await expect(page.getByRole('dialog', { name: '시간 설정' })).toHaveCount(0);
+  const initialWidth = (await editor.boundingBox())!.width;
+  const dates = editor.getByRole('region', { name: '일정 시간 설정' });
+  await expect(dates.getByLabel('시작 날짜', { exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: /^반복 설정/ }).click();
+  const options = editor.getByRole('radiogroup', { name: '반복' });
+  await expect(options.getByRole('radio', { name: '한 번' })).toHaveAttribute('aria-checked', 'true');
+  await options.getByRole('radio', { name: '매주 반복' }).click();
+  await expect(options.getByRole('radio', { name: '매주 반복' })).toHaveAttribute('aria-checked', 'true');
+  const weekdays = editor.getByRole('group', { name: '반복 요일' });
+  await expect(weekdays.getByRole('button')).toHaveText(['일', '월', '화', '수', '목', '금', '토']);
+  const row = await options.boundingBox(); const days = await weekdays.boundingBox();
+  expect(days!.y).toBeGreaterThan(row!.y);
+  await editor.getByRole('radio', { name: '종일' }).click();
+  await expect(editor.getByLabel('시작일', { exact: true })).toBeVisible();
+  expect((await editor.boundingBox())!.width).toBe(initialWidth);
+  await expect(page.getByRole('dialog')).toHaveCount(1);
   await editor.getByRole('button', { name: '취소', exact: true }).click();
   await page.getByRole('button', { name: '저장하지 않고 닫기' }).click();
 });
@@ -629,15 +773,15 @@ test('event countdown options can be edited from the schedule editor', async ({ 
   const editor = page.getByRole('dialog', { name: '새 일정' });
   await editor.getByLabel('일정 이름').fill('카운트다운 편집');
   await editor.getByRole('button', { name: '일정 색상 4' }).click();
-  await editor.getByRole('region', { name: '일정 시간 설정' }).getByRole('button', { name: /시간 설정/ }).click();
-  await editor.getByLabel('시작 카운트다운', { exact: true }).check();
-  await editor.getByLabel('카운트다운 기준 시각', { exact: true }).selectOption('end');
-  await editor.getByLabel('종료 며칠 전', { exact: true }).fill('3');
+  await editor.getByRole('button', { name: /^D-day 표시/ }).click();
+  await editor.getByLabel('남은 시간 표시', { exact: true }).check();
+  await editor.getByLabel('카운트다운 기준', { exact: true }).selectOption('end');
+  await editor.getByLabel('표시 시작 일수', { exact: true }).fill('3');
   await editor.getByRole('button', { name: '저장', exact: true }).click();
 
   expect((await storedItem(page, '카운트다운 편집')).item).toMatchObject({
     kind: 'event',
-    categoryColor: '#272643',
+    categoryColor: getTaskCategoryColor('violet').color,
     countdown: { enabled: true, daysBefore: 3, reference: 'end' },
   });
 });
@@ -648,12 +792,18 @@ test('opening a progress card shows information, a quick countdown toggle and an
   expect((await details.boundingBox())?.width).toBeLessThanOrEqual(522);
   const card = details.getByRole('article', { name: '수강신청' });
   await expect(card).toHaveAttribute('data-expanded', 'true');
-  await expect(card.getByRole('progressbar')).toBeVisible();
-  expect((await card.boundingBox())?.height).toBeGreaterThan(100);
+  const progress = card.getByRole('progressbar');
+  await expect(progress).toBeVisible();
+  expect((await card.boundingBox())?.height).toBeGreaterThanOrEqual(88);
+  await expect(progress).toHaveCSS('height', '5px');
+  await expect(details.locator('footer')).toHaveCSS('border-top-width', '0px');
+  await expect(details.getByRole('button', { name: '닫기' })).toHaveCSS('min-height', '44px');
+  await expect(details.getByRole('button', { name: '수정' })).toHaveCSS('min-height', '44px');
   const countdown = details.getByRole('switch', { name: '카운트다운' });
   await expect(countdown).toBeChecked();
   await countdown.click();
   await expect(countdown).not.toBeChecked();
+  await expect(details.getByRole('status')).toContainText('설정을 저장했습니다.');
 
   await details.getByRole('button', { name: '수정', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '일정 수정' });
@@ -663,14 +813,14 @@ test('opening a progress card shows information, a quick countdown toggle and an
 
 test('category settings use a compact dialog and readable category dots', async ({ page }) => {
   await chooseHomeDate(page, '2026-10-10');
-  const selectedTasks = page.getByRole('region', { name: '선택한 날짜의 할 일' });
+  const selectedTasks = page.getByRole('region', { name: '선택한 날짜의 일정과 할 일' });
   const categoryHeading = selectedTasks.locator('[data-task-category="기본"] h3');
   await expect(categoryHeading).toBeVisible();
   const selectedTasksBounds = await selectedTasks.boundingBox();
   const categoryHeadingBounds = await categoryHeading.boundingBox();
   expect(selectedTasksBounds).not.toBeNull();
   expect(categoryHeadingBounds).not.toBeNull();
-  expect(categoryHeadingBounds!.x).toBeGreaterThan(selectedTasksBounds!.x + 6);
+  expect(Math.abs(categoryHeadingBounds!.x - selectedTasksBounds!.x)).toBeLessThanOrEqual(1);
   const categoryDot = categoryHeading.locator('span').first();
   await expect(categoryDot).toHaveCSS('width', '12px');
   await expect(categoryDot).toHaveCSS('height', '12px');
@@ -697,10 +847,27 @@ test('new creation menu uses one event flow and preserves existing period cards'
   const sortDialog = page.getByRole('dialog', { name: '디데이 정렬' });
   await expect(sortDialog).toHaveCSS('max-height', '410px');
   await expect(sortDialog.locator('[data-period-id="design-window-enrollment"]')).toBeVisible();
-  await sortDialog.getByRole('button', { name: '전체 디데이 보기' }).click();
-  await expect(sortDialog.getByTestId('all-periods-list')).toContainText('장학금 신청');
-  const activeFirstCard = sortDialog.getByRole('list').first().locator('li > article').first();
-  const completedFirstCard = sortDialog.getByTestId('all-periods-list').locator('li > article').first();
+  await sortDialog.getByRole('button', { name: '전체 D-day 보기' }).click();
+  const allPeriodsDialog = page.getByRole('dialog', { name: '전체 D-day' });
+  await expect(allPeriodsDialog).toHaveAttribute('data-view', 'all');
+  await expect(allPeriodsDialog.getByTestId('all-periods-list')).toContainText('장학금 신청');
+  const activeHeading = allPeriodsDialog.getByRole('heading', { name: '예정 및 진행 중' });
+  const completedHeading = allPeriodsDialog.getByRole('heading', { name: '완료 및 종료' });
+  const activeFirstCard = allPeriodsDialog.getByRole('list').first().locator('li > article').first();
+  const completedFirstCard = allPeriodsDialog.getByTestId('all-periods-list').locator('li > article').first();
+  for (const [heading, card] of [[activeHeading, activeFirstCard], [completedHeading, completedFirstCard]] as const) {
+    const headingBounds = await heading.boundingBox();
+    const cardBounds = await card.boundingBox();
+    expect(Math.abs((headingBounds?.x ?? 0) - (cardBounds?.x ?? 0))).toBeLessThanOrEqual(2);
+  }
+  await expect.poll(async () => {
+    const activeBounds = await activeFirstCard.boundingBox();
+    const completedBounds = await completedFirstCard.boundingBox();
+    return Math.abs((activeBounds?.width ?? 0) - (completedBounds?.width ?? 0));
+  }).toBeLessThanOrEqual(2);
+  const dialogBounds = await allPeriodsDialog.boundingBox();
+  const activeBounds = await activeFirstCard.boundingBox();
+  expect(activeBounds?.x).toBeGreaterThan((dialogBounds?.x ?? 0) + 8);
   await expect.poll(async () => {
     const activeBounds = await activeFirstCard.boundingBox();
     const completedBounds = await completedFirstCard.boundingBox();
@@ -723,8 +890,7 @@ test('home progress cards can be reordered with the keyboard and keep their save
   expect(savedOrder.slice(0, reorderedIds.length)).toEqual(reorderedIds);
   await page.reload();
   const restoredCards = page.getByTestId('period-card-grid').locator('[data-period-card-id]');
-  await expect(restoredCards.first()).toHaveAttribute('data-period-card-id', reorderedIds[0]!);
-  expect(await restoredCards.evaluateAll((elements) => elements.map((element) => element.getAttribute('data-period-card-id')))).toEqual(reorderedIds);
+  await expect.poll(() => restoredCards.evaluateAll((elements) => elements.map((element) => element.getAttribute('data-period-card-id')))).toEqual(reorderedIds);
 });
 
 test('home progress cards can be moved by holding and dragging to another card', async ({ page }) => {
@@ -784,7 +950,7 @@ test.describe('touch progress-card reordering', () => {
   });
 });
 
-test('date and time pickers stay below their fields and keep the time action visible on mobile', async ({ page }) => {
+test('date and time pickers stay anchored and keep the time action visible on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: '메뉴' }).click();
   await page.getByRole('menuitem', { name: '새 할 일' }).click();
@@ -794,14 +960,15 @@ test('date and time pickers stay below their fields and keep the time action vis
 
   const datePicker = page.getByRole('group', { name: '날짜 달력' });
   await expect(datePicker).toBeVisible();
+  await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity));
   const dateGeometry = await page.evaluate(() => {
     const panel = document.querySelector<HTMLElement>('[role="group"][aria-label="날짜 달력"]');
     const trigger = document.querySelector<HTMLElement>('[aria-label="날짜 달력 선택 열기"]');
     const control = trigger?.parentElement;
     if (!panel || !(control instanceof HTMLElement)) throw new Error('날짜 달력 위치를 확인할 요소가 없습니다.');
-    return { panelTop: panel.getBoundingClientRect().top, panelBottom: panel.getBoundingClientRect().bottom, anchorBottom: control.getBoundingClientRect().bottom, viewportBottom: window.innerHeight };
+    return { panelTop: panel.getBoundingClientRect().top, panelBottom: panel.getBoundingClientRect().bottom, anchorTop: trigger.getBoundingClientRect().top, anchorBottom: trigger.getBoundingClientRect().bottom, viewportBottom: window.innerHeight };
   });
-  expect(dateGeometry.panelTop).toBeGreaterThanOrEqual(dateGeometry.anchorBottom + 7);
+  expect(dateGeometry.panelTop >= dateGeometry.anchorBottom + 7 || dateGeometry.panelBottom <= dateGeometry.anchorTop - 7).toBe(true);
   expect(dateGeometry.panelBottom).toBeLessThanOrEqual(dateGeometry.viewportBottom);
   await page.keyboard.press('Escape');
 
@@ -828,9 +995,9 @@ test('date and time pickers stay below their fields and keep the time action vis
     const done = [...panel.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent === '완료');
     if (!done) throw new Error('시각 선택 완료 버튼을 찾지 못했습니다.');
     const panelRect = panel.getBoundingClientRect(); const anchorRect = control.getBoundingClientRect(); const doneRect = done.getBoundingClientRect();
-    return { panelTop: panelRect.top, panelBottom: panelRect.bottom, anchorBottom: anchorRect.bottom, doneTop: doneRect.top, doneBottom: doneRect.bottom, viewportBottom: window.innerHeight };
+    return { panelTop: panelRect.top, panelBottom: panelRect.bottom, anchorTop: anchorRect.top, anchorBottom: anchorRect.bottom, doneTop: doneRect.top, doneBottom: doneRect.bottom, viewportBottom: window.innerHeight };
   });
-  expect(timeGeometry.panelTop).toBeGreaterThanOrEqual(timeGeometry.anchorBottom + 7);
+  expect(timeGeometry.panelTop >= timeGeometry.anchorBottom + 7 || timeGeometry.panelBottom <= timeGeometry.anchorTop - 7).toBe(true);
   expect(timeGeometry.panelBottom).toBeLessThanOrEqual(timeGeometry.viewportBottom);
   expect(timeGeometry.doneTop).toBeGreaterThanOrEqual(timeGeometry.panelTop);
   expect(timeGeometry.doneBottom).toBeLessThanOrEqual(timeGeometry.panelBottom);
@@ -841,7 +1008,6 @@ test('event time picker stays fully visible when its inline fields expand on mob
   await page.getByRole('button', { name: '메뉴' }).click();
   await page.getByRole('menuitem', { name: '새 일정', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '새 일정' });
-  await editor.getByRole('button', { name: /시간 설정/ }).click();
 
   const timeTrigger = editor.getByRole('button', { name: '시작 시각 시각 선택 열기' });
   await timeTrigger.click();
@@ -882,9 +1048,13 @@ test('calendar header centers each weekday and home omits ended schedule cards',
   await page.goto('/calendar/?preview=design');
   await expect(page.getByRole('link', { name: 'Todo 홈' })).toHaveCount(0);
   const title = page.getByRole('heading', { level: 1 });
+  const previousArrow = page.getByRole('button', { name: '이전 주' });
   await expect(title).toBeVisible();
+  await expect(previousArrow).toBeVisible();
   const titleBox = await title.boundingBox();
-  const previousArrowBox = await page.getByRole('button', { name: '이전 주' }).boundingBox();
+  const previousArrowBox = await previousArrow.boundingBox();
+  expect(titleBox).not.toBeNull();
+  expect(previousArrowBox).not.toBeNull();
   expect(Math.abs((titleBox?.y ?? 0) + (titleBox?.height ?? 0) / 2 - ((previousArrowBox?.y ?? 0) + (previousArrowBox?.height ?? 0) / 2))).toBeLessThanOrEqual(4);
   const monday = page.locator('[aria-label="요일"] > div').nth(2);
   expect(await monday.evaluate((element) => getComputedStyle(element).justifyItems)).toBe('center');
@@ -893,34 +1063,31 @@ test('calendar header centers each weekday and home omits ended schedule cards',
   await expect(page.locator('[data-period-phase="overdue"]')).toHaveCount(0);
 });
 
-test('settings hides the brand and lets content continue under only the floating navigation pill', async ({ page }) => {
+test('settings hides the brand and reserves a clear area for bottom navigation', async ({ page }) => {
   await page.goto('/settings/?preview=design');
   await expect(page.getByRole('link', { name: 'Todo 홈' })).toBeHidden();
-  await expect(page.getByRole('combobox', { name: '색상 조합' })).toBeVisible();
+  await expect(page.getByText('Apple Blue', { exact: true })).toBeVisible();
   const frame = page.locator('[class*="AppShell_frame"]');
-  const route = page.getByRole('main').first();
+  const route = page.locator('div[class*="AppShell_route"]');
   await expect.poll(() => route.evaluate((element) => element.getAnimations().length)).toBe(0);
   const frameBox = await frame.boundingBox();
   const routeBox = await route.boundingBox();
-  expect(Math.abs(((frameBox?.y ?? 0) + (frameBox?.height ?? 0)) - ((routeBox?.y ?? 0) + (routeBox?.height ?? 0)))).toBeLessThanOrEqual(6);
+  expect(Math.abs(((frameBox?.y ?? 0) + (frameBox?.height ?? 0)) - ((routeBox?.y ?? 0) + (routeBox?.height ?? 0)))).toBe(82);
 });
 
-test('color palette applies immediately and survives a reload', async ({ page }) => {
+test('Apple Blue is the fixed interface accent and survives a reload', async ({ page }) => {
   await page.goto('/settings/?preview=design');
   const frame = page.locator('[data-app-state="design-preview"]');
-  const palette = page.getByRole('combobox', { name: '색상 조합' });
-
-  await expect(palette).toHaveAttribute('data-value', 'arctic');
-  await expect(frame).toHaveAttribute('data-color-theme', 'arctic');
-  await palette.click();
-  await page.getByRole('option', { name: 'Rose Quartz' }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'rose-quartz');
-  await expect.poll(() => frame.evaluate((element) => getComputedStyle(element).getPropertyValue('--color-accent').trim())).toBe('#8F5A73');
+  await expect(page.getByText('Apple Blue', { exact: true })).toBeVisible();
+  await expect(page.getByText('#0066CC', { exact: true })).toHaveCount(0);
+  await expect(frame).toHaveAttribute('data-color-theme', 'apple-blue');
+  await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'apple-blue');
+  await expect.poll(() => frame.evaluate((element) => getComputedStyle(element).getPropertyValue('--color-accent').trim())).toBe('#0066cc');
 
   await page.reload();
-  await expect(page.getByRole('combobox', { name: '색상 조합' })).toHaveAttribute('data-value', 'rose-quartz');
-  await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'rose-quartz');
-  await expect(page.locator('[data-app-state="design-preview"]')).toHaveAttribute('data-color-theme', 'rose-quartz');
+  await expect(page.getByText('Apple Blue', { exact: true })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'apple-blue');
+  await expect(page.locator('[data-app-state="design-preview"]')).toHaveAttribute('data-color-theme', 'apple-blue');
 });
 
 test('bottom navigation retargets its indicator quickly and scrollbar only appears while scrolling', async ({ page }) => {
@@ -965,14 +1132,14 @@ test('bottom navigation switches immediately when reduced motion is requested', 
   await expect.poll(() => page.locator('[data-route="calendar"]').evaluate((element) => getComputedStyle(element).animationName)).toBe('none');
 });
 
-test('weekends and public holidays use the timeline accent palette and the week grid scrolls within the shell', async ({ page }) => {
+test('weekends and public holidays use semantic colors and the week grid scrolls within the shell', async ({ page }) => {
   await page.goto('/calendar/?preview=design');
   const dates = page.getByLabel('주간 날짜');
   await expect(dates.locator('div').nth(1)).toHaveClass(/holiday/);
   await expect(dates.locator('div').nth(5)).toHaveClass(/holiday/);
   await expect(dates.locator('div').nth(6)).toHaveClass(/saturday/);
-  expect(await dates.locator('div').nth(1).locator('strong').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(228, 5, 44)');
-  expect(await dates.locator('div').nth(6).locator('strong').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(44, 105, 141)');
+  expect(await dates.locator('div').nth(1).locator('strong').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(179, 38, 30)');
+  expect(await dates.locator('div').nth(6).locator('strong').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(0, 102, 204)');
   const route = page.locator('[data-route="calendar"]');
   expect(await route.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true);
   const scroller = page.getByRole('region', { name: '시간표 스크롤 영역' });
@@ -982,13 +1149,15 @@ test('weekends and public holidays use the timeline accent palette and the week 
   await expect(month.getByRole('gridcell', { name: /10월 4일/ })).toHaveClass(/sunday/);
   await expect(month.getByRole('gridcell', { name: /10월 9일/ })).toHaveClass(/holiday/);
   await expect(month.getByRole('gridcell', { name: /10월 10일/ })).toHaveClass(/saturday/);
-  expect(await month.getByRole('gridcell', { name: /10월 4일/ }).locator('[class*="dayNumber"]').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(228, 5, 44)');
-  expect(await month.getByRole('gridcell', { name: /10월 10일/ }).locator('[class*="dayNumber"]').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(44, 105, 141)');
+  expect(await month.getByRole('gridcell', { name: /10월 4일/ }).locator('[class*="dayNumber"]').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(179, 38, 30)');
+  expect(await month.getByRole('gridcell', { name: /10월 10일/ }).locator('[class*="dayNumber"]').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(0, 102, 204)');
 });
 
 test('settings can scroll the last controls above the floating bottom navigation', async ({ page }) => {
   await page.goto('/settings/?preview=design');
-  const route = page.locator('main[class*="route"]');
+  const route = page.locator('div[class*="AppShell_route"]');
+  expect(await route.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto');
+  expect(await route.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
   const navigation = page.getByRole('navigation', { name: '주요 메뉴' });
   await route.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   const lastControl = page.getByRole('region', { name: '데이터 관리' }).getByRole('button', { name: '샘플로 초기화' });
@@ -997,4 +1166,132 @@ test('settings can scroll the last controls above the floating bottom navigation
   const lastControlHeight = (await lastControl.boundingBox())?.height ?? 0;
   const navigationTop = (await navigation.boundingBox())?.y ?? 0;
   expect(contentBottom + lastControlHeight).toBeLessThanOrEqual(navigationTop);
+});
+
+test('compact home keeps the menu above 72px D-day cards and prioritizes tasks', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  const cards = page.getByTestId('period-card-grid');
+  const menu = page.getByRole('button', { name: '메뉴', exact: true });
+  await expect(menu).toBeVisible();
+  await expect(cards).toBeVisible();
+  await expect.poll(async () => {
+    const menuBounds = await menu.boundingBox();
+    const cardBounds = await cards.boundingBox();
+    return Boolean(menuBounds && cardBounds && menuBounds.y + menuBounds.height <= cardBounds.y);
+  }).toBe(true);
+  await expect(cards.locator('article').first()).toHaveCSS('height', '72px');
+  const month = page.getByRole('region', { name: '월간 할 일', exact: true });
+  await expect(month.getByLabel('달력 표시 범례')).toHaveCount(0);
+  await expect(month.locator('[aria-label*="일정 "]')).toHaveCount(0);
+  const selected = page.getByRole('region', { name: '선택한 날짜의 일정과 할 일' });
+  await expect(selected.getByRole('button', { name: /학회 논문 제출/ })).toHaveCount(0);
+  await expect(selected.getByRole('button', { name: '할 일 추가', exact: true })).toBeVisible();
+  await menu.click();
+  await expect(page.getByRole('menuitem', { name: '새 일정', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeFocused();
+});
+
+test('small desktop dropdown stays in the viewport and returns keyboard focus', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto('/settings/?preview=design');
+  const trigger = page.getByRole('combobox', { name: '시간대', exact: true });
+  await trigger.click();
+  const list = page.getByRole('listbox', { name: '시간대 선택' });
+  await expect(list).toBeVisible();
+  const box = await list.boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(12);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(788);
+  expect(box!.y).toBeGreaterThanOrEqual(12);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(588);
+  await page.keyboard.press('End');
+  await expect(list.getByRole('option').last()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(list).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveCSS('min-height', '32px');
+});
+
+test('portal settings options continue Tab navigation from their trigger', async ({ page }) => {
+  await page.goto('/settings/?preview=design');
+  const start = page.getByRole('combobox', { name: '주 시작일', exact: true });
+  const format = page.getByRole('combobox', { name: '시간 표시', exact: true });
+  await start.click();
+  await page.keyboard.press('Tab');
+  await expect(format).toBeFocused();
+  await format.click();
+  await page.keyboard.press('Shift+Tab');
+  await expect(start).toBeFocused();
+});
+
+test('home fits the desktop shell without page or task-list scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 600 });
+  await page.goto('/?preview=design');
+  const route = page.locator('[data-route="home"]');
+  const taskSection = page.getByRole('region', { name: '할 일', exact: true });
+  await expect.poll(() => route.evaluate((element) => element.getAnimations().length)).toBe(0);
+
+  const routeMetrics = await route.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    overflowY: getComputedStyle(element).overflowY,
+    bottom: element.getBoundingClientRect().bottom,
+  }));
+  expect(routeMetrics.overflowY).toBe('hidden');
+  expect(routeMetrics.scrollHeight).toBeLessThanOrEqual(routeMetrics.clientHeight);
+
+  const taskMetrics = await taskSection.evaluate((element) => ({
+    bottom: element.getBoundingClientRect().bottom,
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+  }));
+  expect(taskMetrics.scrollHeight).toBeLessThanOrEqual(taskMetrics.clientHeight);
+  const lastTask = await taskSection.locator('[data-task-id]').last().boundingBox();
+  expect(lastTask?.y).toBeGreaterThanOrEqual((await route.boundingBox())!.y);
+  expect((lastTask?.y ?? 0) + (lastTask?.height ?? 0)).toBeLessThanOrEqual(Math.min(routeMetrics.bottom, taskMetrics.bottom));
+});
+
+test('compact home keeps a dense selected-day task list visible without scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 600 });
+  const countdown: ProposedCalendarItem = {
+    id: '10000000-0000-4000-8000-000000000001',
+    kind: 'window',
+    title: '수강신청',
+    timing: { type: 'date', startDate: '2026-10-07', endDate: '2026-10-09', timeZone: 'Asia/Seoul' },
+    completion: 'pending',
+    checklist: [],
+    startCountdown: { enabled: true, daysBefore: 1 },
+  };
+  const tasks: ProposedCalendarItem[] = Array.from({ length: 10 }, (_, index): ProposedCalendarItem => ({
+    id: `20000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    kind: 'task',
+    title: `10월 6일 할 일 ${index + 1}`,
+    timing: { type: 'date', startDate: null, endDate: '2026-10-06', timeZone: 'Asia/Seoul' },
+    completion: 'pending',
+  }));
+  await seedItems(page, [countdown, ...tasks]);
+
+  const route = page.locator('[data-route="home"]');
+  const taskSection = page.getByRole('region', { name: '할 일', exact: true });
+  const rows = taskSection.locator('[data-task-id]');
+  await expect(rows).toHaveCount(10);
+  const routeMetrics = await route.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    bottom: element.getBoundingClientRect().bottom,
+  }));
+  expect(routeMetrics.scrollHeight).toBeLessThanOrEqual(routeMetrics.clientHeight);
+  const lastTask = await rows.last().boundingBox();
+  expect((lastTask?.y ?? 0) + (lastTask?.height ?? 0)).toBeLessThanOrEqual(routeMetrics.bottom);
+});
+
+test('opening a home popup leaves the fixed route stationary', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 600 });
+  const route = page.locator('[data-route="home"]');
+  await expect.poll(() => route.evaluate((element) => element.getAnimations().length)).toBe(0);
+  const before = await route.evaluate((element) => element.scrollTop);
+  expect(before).toBe(0);
+  await page.getByRole('button', { name: '할 일 추가', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '새 할 일' })).toBeVisible();
+  await expect.poll(() => route.evaluate((element) => element.scrollTop)).toBe(before);
 });

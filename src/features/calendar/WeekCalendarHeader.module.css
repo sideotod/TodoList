@@ -30,7 +30,7 @@
 }
 
 .today {
-  min-height: 28px;
+  min-height: var(--control-height);
   flex: none;
   margin-left: var(--space-1);
   padding: 0 9px;
@@ -40,7 +40,7 @@
   color: var(--color-secondary);
   cursor: pointer;
   font: inherit;
-  font-size: var(--font-size-10);
+  font-size: var(--text-control);
   font-weight: 550;
 }
 
@@ -61,10 +61,48 @@
   flex: none;
 }
 
+.viewToggle {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-background);
+}
+
+.viewToggle button {
+  min-width: 38px;
+  min-height: 26px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: transparent;
+  color: var(--color-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-11);
+}
+
+.viewToggle button:hover {
+  color: var(--color-foreground);
+}
+
+.viewToggle .selectedView {
+  background: var(--color-surface);
+  color: var(--color-accent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-shadow) 8%, transparent);
+}
+
+.viewToggle button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: 1px;
+}
+
 .arrow {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--control-height);
+  height: var(--control-height);
   place-items: center;
   padding: 0 5px;
   border: 0;
@@ -103,4 +141,6 @@
     min-height: 26px;
     padding-inline: 7px;
   }
+
+  .viewToggle button { min-width: 31px; padding-inline: 4px; }
 }

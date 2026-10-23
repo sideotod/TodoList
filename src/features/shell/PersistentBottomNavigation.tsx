@@ -10,8 +10,9 @@ export function PersistentBottomNavigation() {
   const { config, session } = useAuth();
   const repository = useRepositoryStatus();
   const designPreview = useSyncExternalStore(subscribeToLocationChanges, isDesignPreview, () => false);
+  const localOnlyMode = config?.status === 'missing';
 
-  const appReady = designPreview || (
+  const appReady = designPreview || localOnlyMode || (
     config?.status === 'configured'
     && session.status === 'signed-in'
     && repository.phase === 'ready'

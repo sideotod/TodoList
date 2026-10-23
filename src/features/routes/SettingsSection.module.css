@@ -1,6 +1,6 @@
 .section {
   width: 100%;
-  margin-top: 22px;
+  margin-top: 12px;
 }
 
 .section h2 {
@@ -13,5 +13,5 @@
 
 .section > div {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }

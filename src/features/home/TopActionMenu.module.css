@@ -1,28 +1,6 @@
-.root {
-  position: absolute;
-  z-index: 8;
-  top: 42px;
-  right: 0;
-}
+.root, .headerRoot { position: relative; z-index: var(--layer-menu); }
 
-.headerRoot {
-  position: relative;
-  top: auto;
-  right: auto;
-  z-index: 8;
-}
-
-.trigger {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-}
+.trigger { composes: iconButton from '../../styles/controls.module.css'; }
 
 .trigger:hover {
   background: var(--color-hover);
@@ -42,25 +20,26 @@
 }
 
 .menu {
+  composes: popover from '../../styles/controls.module.css';
   position: absolute;
-  top: 40px;
+  top: calc(100% + 6px);
   right: 0;
   display: grid;
   width: 232px;
   max-height: min(360px, calc(100svh - 90px));
-  grid-auto-rows: 40px;
+  grid-auto-rows: var(--control-height);
   overflow-y: auto;
   gap: 0;
   padding: var(--space-2);
   border-radius: var(--radius-card);
   background: var(--color-surface);
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--color-shadow) 14%, transparent), 0 2px 8px color-mix(in srgb, var(--color-shadow) 6%, transparent);
+
   animation: open-menu 140ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .item {
   display: grid;
-  min-height: 36px;
+  min-height: var(--control-height);
   align-content: center;
   gap: 0;
   padding: 0 10px;

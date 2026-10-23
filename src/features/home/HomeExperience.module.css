@@ -4,13 +4,49 @@
   width: min(var(--app-content-width, 840px), calc(100% - 48px));
   min-height: 100%;
   margin-inline: auto;
-  padding: 110px 0 82px;
+  padding: 0 0 24px;
+}
+
+.homeHeaderActions {
+  position: absolute;
+  z-index: var(--layer-menu);
+  top: -61px;
+  right: 0;
+}
+
+@media (min-width: 761px) {
+  .page {
+    box-sizing: border-box;
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  .workspace {
+    min-height: 0;
+    flex: 1 1 auto;
+    align-items: stretch;
+    margin-top: 18px;
+  }
+
+  .calendarPanel {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .calendarPanel > section {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
 }
 
 .workspace {
   display: grid;
   width: 100%;
-  grid-template-columns: minmax(0, 520px) minmax(0, 296px);
+  grid-template-columns: minmax(0, 1.76fr) minmax(0, 1fr);
   align-items: start;
   gap: var(--space-5);
   margin: 26px auto 0;
@@ -34,12 +70,36 @@
 @media (max-width: 760px) {
   .page {
     width: calc(100% - 32px);
-    padding-top: 82px;
+    padding-top: 10px;
   }
 
   .workspace {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-5);
     margin-top: 20px;
+  }
+
+  .homeHeaderActions {
+    top: 0;
+  }
+}
+
+@media (min-width: 761px) and (max-height: 700px) {
+  .homeHeaderActions {
+    top: -53px;
+  }
+
+  .workspace {
+    margin-top: 14px;
+  }
+}
+
+@media (min-width: 761px) and (max-height: 640px) {
+  .homeHeaderActions {
+    top: -45px;
+  }
+
+  .workspace {
+    margin-top: 0;
   }
 }

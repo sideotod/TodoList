@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { UIEvent } from 'react';
+import { Temporal } from '@js-temporal/polyfill';
 import type { ItemView } from '../../domain/items';
 import { getLocalDate } from '../../domain/time';
+import { updateRouteDate } from '../../lib/route-date';
 import { CALENDAR_END_HOUR, CALENDAR_START_HOUR } from './calendar-time-range';
 import { PeriodList } from './PeriodList';
 import { shiftDate } from './calendar-dates';
@@ -25,6 +27,7 @@ export type WeekCalendarViewProps = {
   onAddEvent: (date: string) => void;
   onAdd(date: string, startTime: string): void;
   onOpen(item: ItemView): void;
+  onViewChange: (view: 'week' | 'periods') => void;
 };
 
 export function WeekCalendarView({
@@ -39,17 +42,28 @@ export function WeekCalendarView({
   onAddEvent,
   onAdd,
   onOpen,
+  onViewChange,
 }: WeekCalendarViewProps) {
   const today = getLocalDate(nowMs, timeZone);
   const [anchorDate, setAnchorDate] = useState(initialDate ?? today);
   const [isTimeScrolling, setIsTimeScrolling] = useState(false);
+  const timeScrollerRef = useRef<HTMLDivElement>(null);
+  const nowMsRef = useRef(nowMs);
+  const currentDate = Temporal.Instant.fromEpochMilliseconds(nowMs).toZonedDateTimeISO(timeZone).toPlainDate().toString();
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dates = getWeekDates(anchorDate, weekStartsOn);
   const startDate = dates[0] ?? anchorDate;
   const endDate = dates[6] ?? anchorDate;
 
   function moveWeek(amount: number) {
-    setAnchorDate((date) => shiftDate(date, amount * 7));
+    const nextDate = shiftDate(anchorDate, amount * 7);
+    setAnchorDate(nextDate);
+    updateRouteDate(nextDate);
+  }
+
+  function moveToToday() {
+    setAnchorDate(today);
+    updateRouteDate(today);
   }
 
   function handleTimeScroll() {
@@ -69,14 +83,30 @@ export function WeekCalendarView({
     if (scrollTimer.current !== null) clearTimeout(scrollTimer.current);
   }, []);
 
+  useLayoutEffect(() => {
+    nowMsRef.current = nowMs;
+  }, [nowMs]);
+
+  useLayoutEffect(() => {
+    if (showingPeriods) return;
+    const scroller = timeScrollerRef.current;
+    if (!scroller) return;
+    const currentTime = Temporal.Instant.fromEpochMilliseconds(nowMsRef.current).toZonedDateTimeISO(timeZone);
+    const isCurrentWeek = startDate <= currentDate && currentDate <= endDate;
+    const preferredStartHour = isCurrentWeek ? currentTime.hour + currentTime.minute / 60 - 1 : null;
+    scroller.scrollTop = getInitialScrollTop(preferredStartHour, scroller.clientHeight);
+  }, [currentDate, endDate, showingPeriods, startDate, timeZone]);
+
   return (
     <main className={styles.page} data-view={showingPeriods ? 'periods' : 'week'}>
       <WeekCalendarHeader
         rangeLabel={formatRange(startDate, endDate)}
         onMoveWeek={moveWeek}
-        onToday={() => setAnchorDate(today)}
+        onToday={moveToToday}
         onAddTask={() => onAddTask(anchorDate)}
         onAddEvent={() => onAddEvent(anchorDate)}
+        showingPeriods={showingPeriods}
+        onViewChange={onViewChange}
       />
       {showingPeriods ? (
         <PeriodList items={items} nowMs={nowMs} onOpen={onOpen} />
@@ -102,7 +132,7 @@ export function WeekCalendarView({
             <div className={styles.allDay}>
               <WeekAllDayLane dates={dates} items={items} timeZone={timeZone} onOpen={onOpen} />
             </div>
-            <div aria-label="시간표 스크롤 영역" className={`${styles.timeScroller} ${isTimeScrolling ? styles.scrolling : ''}`} data-scrolling={isTimeScrolling} onScroll={handleTimeScroll} role="region" tabIndex={0}>
+            <div aria-label="시간표 스크롤 영역" className={`${styles.timeScroller} ${isTimeScrolling ? styles.scrolling : ''}`} data-scrolling={isTimeScrolling} onScroll={handleTimeScroll} ref={timeScrollerRef} role="region" tabIndex={0}>
               <WeekTimeGrid
                 dates={dates}
                 today={today}
@@ -121,6 +151,17 @@ export function WeekCalendarView({
       )}
     </main>
   );
+}
+
+const HOUR_HEIGHT = 42;
+
+function getInitialScrollTop(preferredStartHour: number | null, viewportHeight: number): number {
+  const totalHeight = (CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT;
+  const maxScrollTop = Math.max(0, totalHeight - viewportHeight);
+  const firstHour = preferredStartHour === null
+    ? CALENDAR_START_HOUR
+    : Math.max(CALENDAR_START_HOUR, Math.min(CALENDAR_END_HOUR - 1, preferredStartHour));
+  return Math.max(0, Math.min(maxScrollTop, (firstHour - CALENDAR_START_HOUR) * HOUR_HEIGHT));
 }
 
 function getDateClassName(date: string, today: string): string {
