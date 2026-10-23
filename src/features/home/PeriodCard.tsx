@@ -1,7 +1,7 @@
 'use client';
 
-import { deriveChecklistStatus } from '../../domain/projections';
-import { addCalendarDays, getDateStartMs, getDeadlineCountdown, getElapsedRatio, getEventCountdown, getPeriodPhase, getStartCountdown, getTimingBounds } from '../../domain/time';
+import { deriveChecklistStatus, resolvePeriodChecklist } from '../../domain/projections';
+import { addCalendarDays, formatDDay, getDateStartMs, getDeadlineCountdown, getElapsedRatio, getEventCountdown, getLocalDate, getPeriodPhase, getStartCountdown, getTimingBounds } from '../../domain/time';
 import type { ItemView, ProposedCalendarItem } from '../../domain/items';
 import styles from './PeriodCard.module.css';
 
@@ -12,9 +12,10 @@ type PeriodCardProps = {
   titleId?: string;
   expanded?: boolean;
   home?: boolean;
+  allItems?: readonly ItemView[];
 };
 
-export function PeriodCard({ item, nowMs, onOpen, titleId, expanded = false, home = false }: PeriodCardProps) {
+export function PeriodCard({ item, nowMs, onOpen, titleId, expanded = false, home = false, allItems = [] }: PeriodCardProps) {
   const display = item.display;
   if (display.kind !== 'deadline' && display.kind !== 'window' && display.kind !== 'event') return null;
   const bounds = getTimingBounds(display.timing);
@@ -33,7 +34,7 @@ export function PeriodCard({ item, nowMs, onOpen, titleId, expanded = false, hom
       ? getDeadlineCountdown(display, nowMs)
       : getStartCountdown(display, nowMs);
   const checklist = display.kind === 'deadline' || display.kind === 'window'
-    ? deriveChecklistStatus(display.checklist)
+    ? deriveChecklistStatus(resolvePeriodChecklist(display.checklist, allItems))
     : { kind: 'none' as const, total: 0 as const };
   const isComplete = ('completion' in display && display.completion === 'completed') || checklist.kind === 'complete';
   const fillRatio = phase === 'scheduled' ? scheduledProgress : phase === 'active' ? ratio : 1;
@@ -41,10 +42,23 @@ export function PeriodCard({ item, nowMs, onOpen, titleId, expanded = false, hom
   const countdownUrgency = getCountdownUrgency(display, countdown);
   const phaseClass = phase === 'scheduled' ? styles.scheduled : phase === 'active' ? styles.active : styles.ended;
   const trackClass = phase === 'scheduled' ? styles.scheduledTrack : phase === 'active' ? styles.activeTrack : styles.endedTrack;
+  const homeMetric = isComplete ? '완료' : countdown.kind !== 'hidden' ? countdown.text : getHomeDayLabel(display, phase, nowMs);
 
   return (
     <article aria-label={display.title} className={`${styles.card} ${phaseClass}${expanded ? ` ${styles.expanded}` : ''}`} data-expanded={expanded} data-home-card={home ? 'true' : undefined} data-period-phase={phase} data-period-state={state}>
       {onOpen && <button aria-label={display.title} className={styles.cardAction} onClick={() => onOpen(item)} type="button" />}
+      {home ? (
+        <div className={styles.homeRow}>
+          <h3 className={styles.homeTitle}>{display.title}</h3>
+          <span className={styles.homeEndpoint}>{formatHomeEndpoint(display, phase)}</span>
+          {fillRatio === null ? <span aria-hidden="true" className={styles.homeTrack} /> : (
+            <span aria-label={phase === 'scheduled' ? '시작까지 남은 기간' : '기간 진행률'} aria-valuemax={100} aria-valuemin={0} aria-valuenow={Math.round(fillRatio * 100)} className={styles.homeTrack} role="progressbar">
+              <span className={styles.homeFill} style={{ transform: `scaleX(${fillRatio})` }} />
+            </span>
+          )}
+          <strong className={`${styles.homeMetric} ${styles[`metric_${countdownUrgency}`]}`}>{homeMetric}</strong>
+        </div>
+      ) : <>
       <div className={styles.heading}>
         <h3 className={styles.title} id={titleId}>{display.title}</h3>
         <div className={styles.meta}>
@@ -74,8 +88,33 @@ export function PeriodCard({ item, nowMs, onOpen, titleId, expanded = false, hom
         <span>{formatEndpoint(display, 'start')}</span>
         <span>{formatEndpoint(display, 'end')}</span>
       </div>
+      </>}
     </article>
   );
+}
+
+function formatHomeEndpoint(item: ProposedCalendarItem, phase: 'scheduled' | 'active' | 'overdue'): string {
+  const timing = item.timing;
+  if (timing.type === 'unscheduled') return '날짜 미정';
+  if (timing.type === 'date') {
+    const date = phase === 'scheduled' ? timing.startDate ?? timing.endDate : timing.endDate;
+    return new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00.000Z`));
+  }
+  const instant = phase === 'scheduled' ? timing.startAt ?? timing.endAt : timing.endAt ?? timing.startAt;
+  if (!instant) return '날짜 미정';
+  return new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timing.timeZone }).format(new Date(instant));
+}
+
+function getHomeDayLabel(item: ProposedCalendarItem, phase: 'scheduled' | 'active' | 'overdue', nowMs: number): string {
+  if (phase === 'overdue') return '종료';
+  const timing = item.timing;
+  if (timing.type === 'unscheduled') return '날짜 미정';
+  const target = phase === 'scheduled'
+    ? timing.type === 'date' ? timing.startDate ?? timing.endDate : timing.startAt ?? timing.endAt
+    : timing.type === 'date' ? timing.endDate : timing.endAt ?? timing.startAt;
+  if (!target) return '날짜 미정';
+  const date = timing.type === 'date' ? target : getLocalDate(Date.parse(target), timing.timeZone);
+  return formatDDay(date, timing.timeZone, nowMs);
 }
 
 type VisualState = 'before' | 'start-soon' | 'active' | 'end-soon' | 'ended';

@@ -17,10 +17,11 @@ describe('month agenda', () => {
       showHeading: false,
     }));
 
-    expect(html).toContain('aria-label="10월 3일 (토), 할 일 3개"');
+    expect(html).toContain('aria-label="10월 3일 (토), 할 일 5개"');
+    expect(html.match(/role="gridcell"/g)).toHaveLength(42);
     expect(html).not.toContain('달력 표시 범례');
     expect(html).not.toContain('마감·기간');
-    expect(html).not.toContain('장학금 신청');
+    expect(html).not.toContain('학회 논문 제출');
   });
 
   it('shows one color marker per task category while keeping the real task count', () => {

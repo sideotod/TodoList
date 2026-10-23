@@ -1,19 +1,10 @@
-'use client';
-
-import Image from 'next/image';
 import styles from './TodoLogo.module.css';
 
-export function TodoLogo({ loading = false }: { loading?: boolean }) {
+export function TodoLogo({ loading = false, variant = 'sidebar' }: { loading?: boolean; variant?: 'sidebar' | 'title' }) {
   return (
-    <Image
-      alt="TODO"
-      className={styles.logo}
-      data-loading={loading}
-      data-testid="todo-logo"
-      height={887}
-      loading="eager"
-      src="/todo-logo-transparent.png"
-      width={1774}
-    />
+    <span aria-label="todo" className={styles.logo} data-loading={loading} data-testid={variant === 'title' ? 'todo-title-logo' : 'todo-logo'} data-variant={variant} role="img">
+      <span aria-hidden="true" className={styles.mark}>✓</span>
+      <span className={styles.word}>todo</span>
+    </span>
   );
 }

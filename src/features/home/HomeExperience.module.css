@@ -1,105 +1,43 @@
-.page {
-  position: relative;
-  display: block;
-  width: min(var(--app-content-width, 840px), calc(100% - 48px));
-  min-height: 100%;
-  margin-inline: auto;
-  padding: 0 0 24px;
+.page { box-sizing: border-box; display: flex; width: 100%; height: 100%; min-height: 0; flex-direction: column; padding: 40px 58px 26px; }
+.workspace { display: grid; width: 100%; min-height: 0; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr) minmax(248px, 292px); grid-template-rows: minmax(0, 1fr); gap: 54px; }
+.primaryColumn { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 22px; }
+.pageHeader { display: flex; min-height: 96px; flex: none; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.pageTitle { display: grid; gap: 4px; }
+.pageTitle > span { color: var(--color-muted); font-size: 10px; font-weight: 650; letter-spacing: .12em; }
+.pageTitle h1 { margin: 0; color: var(--color-foreground); font-size: 32px; font-weight: 650; letter-spacing: -.045em; line-height: 1.12; }
+.pageTitle p { margin: 2px 0 0; color: var(--color-muted); font-size: 12px; }
+.calendarPanel { display: flex; min-width: 0; min-height: 0; flex-direction: column; gap: 14px; padding-left: 24px; border-left: 1px solid var(--color-border); }
+.calendarPanel > section { min-width: 0; }
+.calendarPanel > section:nth-of-type(2) { min-height: 0; flex: 0 0 auto; overflow: visible; }
+.calendarPanel > section:nth-of-type(3) { min-height: 0; max-height: 34%; overflow: auto; }
+.feedback { margin: 0; padding: 8px 10px; border-radius: 7px; background: var(--color-error-soft); color: var(--color-error); font-size: 11px; }
+
+@media (max-width: 1020px) and (min-width: 901px) {
+  .page { padding: 34px 23px 22px; }
+  .workspace { grid-template-columns: minmax(0, 1fr) minmax(228px, 258px); gap: 22px; }
+  .calendarPanel { padding-left: 18px; }
+}
+@media (max-width: 900px) {
+  .page { height: auto; min-height: 100%; padding: 26px 24px; }
+  .pageHeader { min-height: 84px; margin-bottom: 18px; }
+  .workspace { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; gap: 24px; }
+  .primaryColumn { min-height: 500px; }
+  .calendarPanel { min-height: 460px; padding: 20px 0 0; border-top: 1px solid var(--color-border); border-left: 0; }
+  .calendarPanel > section:nth-of-type(2) { flex: initial; }
+  .calendarPanel > section:nth-of-type(3) { max-height: none; }
 }
 
-.homeHeaderActions {
-  position: absolute;
-  z-index: var(--layer-menu);
-  top: -61px;
-  right: 0;
+@media (min-width: 901px) and (max-height: 640px) {
+  .calendarPanel { min-height: 0; overflow: hidden; }
+  .calendarPanel > section:nth-of-type(2) { max-height: 150px; flex: 0 1 auto; overflow: hidden; }
+  .calendarPanel > section:nth-of-type(3) { max-height: 125px; flex: 0 1 125px; overflow: auto; }
 }
 
-@media (min-width: 761px) {
-  .page {
-    box-sizing: border-box;
-    display: flex;
-    height: 100%;
-    min-height: 0;
-    flex: 1 1 auto;
-    flex-direction: column;
-  }
-
-  .workspace {
-    min-height: 0;
-    flex: 1 1 auto;
-    align-items: stretch;
-    margin-top: 18px;
-  }
-
-  .calendarPanel {
-    display: flex;
-    min-height: 0;
-    flex-direction: column;
-  }
-
-  .calendarPanel > section {
-    min-height: 0;
-    flex: 1 1 auto;
-  }
-}
-
-.workspace {
-  display: grid;
-  width: 100%;
-  grid-template-columns: minmax(0, 1.76fr) minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-5);
-  margin: 26px auto 0;
-}
-
-.calendarPanel {
-  min-width: 0;
-}
-
-.feedback {
-  position: absolute;
-  top: 174px;
-  right: 0;
-  left: 0;
-  max-width: 100%;
-  margin: 0;
-  color: var(--color-error);
-  font-size: var(--font-size-11);
-}
-
-@media (max-width: 760px) {
-  .page {
-    width: calc(100% - 32px);
-    padding-top: 10px;
-  }
-
-  .workspace {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-5);
-    margin-top: 20px;
-  }
-
-  .homeHeaderActions {
-    top: 0;
-  }
-}
-
-@media (min-width: 761px) and (max-height: 700px) {
-  .homeHeaderActions {
-    top: -53px;
-  }
-
-  .workspace {
-    margin-top: 14px;
-  }
-}
-
-@media (min-width: 761px) and (max-height: 640px) {
-  .homeHeaderActions {
-    top: -45px;
-  }
-
-  .workspace {
-    margin-top: 0;
-  }
+@media (max-width: 560px) {
+  .page { padding: 20px 16px; }
+  .workspace { gap: 22px; }
+  .primaryColumn { gap: 18px; }
+  .pageHeader { min-height: 54px; }
+  .pageTitle h1 { font-size: 25px; }
+  .calendarPanel { min-height: 420px; }
 }

@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Temporal } from '@js-temporal/polyfill';
 import type { ItemKind, ItemView, ProposedCalendarItem } from '../../domain/items';
-import { mergeTaskCategories, type TaskCategory } from '../../domain/task-categories';
+import { DEFAULT_TASK_CATEGORY, mergeTaskCategories, type TaskCategory } from '../../domain/task-categories';
 import { getLocalDate } from '../../domain/time';
 import { useRepository } from '../../lib/repository-context';
-import { updateRouteDate } from '../../lib/route-date';
+import { updateRouteDate, updateRouteSearchParam } from '../../lib/route-date';
 import { saveDesktopPreferences, useDesktopPreferences } from '../../lib/desktop-preferences';
 import { reorderTaskGroup, transitionTaskGroup, type TaskOrder } from './task-order';
 import { movePeriodId } from './period-sort';
@@ -16,10 +17,11 @@ import { SelectedDayTasks } from './SelectedDayTasks';
 import { MonthHeader } from './MonthHeader';
 import { TopActionMenu } from './TopActionMenu';
 import { PeriodSortDialog } from './PeriodSortDialog';
-import { getDateMonth, moveToMonthDate } from '../calendar/calendar-dates';
+import { formatCalendarHeading, getDateMonth, moveToMonthDate } from '../calendar/calendar-dates';
 import { CalendarItemDetailsDialog } from '../calendar/CalendarItemDetailsDialog';
 import { ItemEditor } from '../items/ItemEditor';
 import { TaskCategoryEditor } from '../items/TaskCategoryEditor';
+import { getTaskLinkDetachments } from '../items/task-link-mutations';
 import { createDraftInput } from '../items/draft-input';
 import { toLocalView, updateLocalPreviewState, useLocalPreviewState } from '../../lib/local-preview-store';
 import styles from './HomeExperience.module.css';
@@ -28,15 +30,19 @@ type HomeExperienceProps = {
   items: readonly ItemView[];
   nowMs: number;
   initialDate?: string;
+  todayDate?: string;
   preview?: boolean;
 };
 
-export function HomeExperience({ items, nowMs, initialDate, preview = false }: HomeExperienceProps) {
-  const selectedToday = initialDate ?? getLocalDate(nowMs, 'Asia/Seoul');
+export function HomeExperience({ items, nowMs, initialDate, todayDate, preview = false }: HomeExperienceProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedToday = todayDate ?? getLocalDate(nowMs, 'Asia/Seoul');
+  const selectedInitialDate = initialDate ?? selectedToday;
   const repository = useRepository();
   const preferences = useDesktopPreferences();
-  const [selectedDate, setSelectedDate] = useState(selectedToday);
-  const [month, setMonth] = useState(getDateMonth(selectedToday));
+  const [selectedDate, setSelectedDate] = useState(selectedInitialDate);
+  const [month, setMonth] = useState(getDateMonth(selectedInitialDate));
   const localPreview = useLocalPreviewState(items);
   const [taskOrder, setTaskOrder] = useState<TaskOrder>({ pending: [], completed: [] });
   const [editorOpen, setEditorOpen] = useState(false);
@@ -51,6 +57,7 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
   const [periodOrder, setPeriodOrder] = useState<string[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
   const [actionError, setActionError] = useState('');
+  const handledOpenId = useRef<string | null>(null);
   const editorReturnFocusRef = useRef<HTMLElement | null>(null);
   const displayItems = preview ? localPreview.items : items;
   const taskCategories = mergeTaskCategories(displayItems, preferences.taskCategories);
@@ -58,6 +65,17 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
   const activeTaskOrder = preview ? (localPreview.taskOrders[selectedDate] ?? { pending: [], completed: [] }) : taskOrder;
   const editorItem = editorItemId ? displayItems.find((item) => item.display.id === editorItemId) ?? null : null;
   const detailsItem = detailsItemId ? displayItems.find((item) => item.display.id === detailsItemId) ?? null : null;
+  const requestedOpenId = searchParams.get('open');
+  const composeTask = searchParams.get('compose') === 'task';
+
+  useEffect(() => {
+    if (!requestedOpenId) { handledOpenId.current = null; return; }
+    if (handledOpenId.current === requestedOpenId) return;
+    if (displayItems.some((item) => item.display.id === requestedOpenId)) {
+      handledOpenId.current = requestedOpenId;
+      setDetailsItemId(requestedOpenId);
+    }
+  }, [displayItems, requestedOpenId]);
 
   useEffect(() => {
     try {
@@ -147,6 +165,31 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
     }
   }
 
+  async function togglePeriodCompletion(item: ItemView) {
+    if (item.display.kind !== 'deadline' && item.display.kind !== 'window') return;
+    const next: ProposedCalendarItem = { ...item.display, completion: item.display.completion === 'completed' ? 'pending' : 'completed' };
+    if (preview) {
+      updateLocalPreviewState(items, (current) => ({ ...current, items: current.items.map((entry) => entry.display.id === item.display.id ? toLocalView(next) : entry) }));
+      return;
+    }
+    if (!repository) throw new Error('저장소에 연결할 수 없습니다.');
+    const result = await repository.saveDraft(createDraftInput(item, next));
+    if (result.status !== 'saved' && result.status !== 'queued') throw new Error('완료 상태를 저장하지 못했습니다.');
+  }
+
+  async function toggleLinkedTaskCompletion(taskId: string, completed: boolean) {
+    const task = displayItems.find((item) => item.display.id === taskId && item.display.kind === 'task');
+    if (!task || task.display.kind !== 'task') throw new Error('연결된 할 일을 찾을 수 없습니다. 연결을 해제한 뒤 다시 시도해 주세요.');
+    const next: ProposedCalendarItem = { ...task.display, completion: completed ? 'completed' : 'pending' };
+    if (preview) {
+      updateLocalPreviewState(items, (current) => ({ ...current, items: current.items.map((entry) => entry.display.id === taskId ? toLocalView(next) : entry) }));
+      return;
+    }
+    if (!repository) throw new Error('저장소에 연결할 수 없습니다.');
+    const result = await repository.saveDraft(createDraftInput(task, next));
+    if (result.status !== 'saved' && result.status !== 'queued') throw new Error('연결된 할 일을 저장하지 못했습니다.');
+  }
+
   async function toggleEventCountdown(item: ItemView, enabled: boolean) {
     let next: ProposedCalendarItem;
     if (item.display.kind === 'event') {
@@ -184,17 +227,23 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
     setActionError('');
     if (preview) {
       try {
+        const detachments = getTaskLinkDetachments(displayItems, item.display.id);
+        const detached = new Map(detachments.map((entry) => [entry.period.display.id, entry.proposal]));
         updateLocalPreviewState(items, (current) => {
           const { [item.display.id]: _removedReminder, ...reminderOffsets } = current.reminderOffsets;
           void _removedReminder;
           return {
             ...current,
-            items: current.items.filter((entry) => entry.display.id !== item.display.id),
+            items: current.items.filter((entry) => entry.display.id !== item.display.id).map((entry) => {
+              const proposal = detached.get(entry.display.id);
+              return proposal ? toLocalView(proposal) : entry;
+            }),
             reminderOffsets,
           };
         });
         setEditorOpen(false);
         setEditorItemId(null);
+        setDetailsItemId(null);
       } catch {
         setActionError('브라우저 로컬 저장소를 사용할 수 없어 삭제하지 못했습니다.');
       }
@@ -202,10 +251,16 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
     }
     if (!repository) return;
     try {
+      const detachments = getTaskLinkDetachments(displayItems, item.display.id);
+      for (const detachment of detachments) {
+        const detached = await repository.saveDraft(createDraftInput(detachment.period, detachment.proposal));
+        if (detached.status !== 'saved' && detached.status !== 'queued') throw new Error('연결된 기간을 먼저 저장하지 못해 할 일을 삭제하지 않았습니다. 최신 내용을 확인한 뒤 다시 시도해 주세요.');
+      }
       const result = await repository.saveDraft(createDraftInput(item, item.display, 'delete'));
       if (result.status === 'saved' || result.status === 'queued' || result.status === 'cancelled') {
         setEditorOpen(false);
         setEditorItemId(null);
+        setDetailsItemId(null);
       } else if (result.status === 'conflict') {
         setActionError('다른 기기에서 이 항목이 변경되었습니다. 삭제 전 양쪽 내용을 확인해 주세요.');
       } else {
@@ -223,6 +278,28 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
     setEditorDefaultStartDate(selectedDate);
     setEditorDefaultStartTime('09:00');
     setEditorOpen(true);
+  }
+
+  async function quickAddTask(title: string): Promise<boolean> {
+    const id = createItemId();
+    const proposal: ProposedCalendarItem = {
+      id,
+      title,
+      kind: 'task',
+      category: DEFAULT_TASK_CATEGORY.name,
+      categoryColor: DEFAULT_TASK_CATEGORY.color,
+      completion: 'pending',
+      timing: { type: 'date', startDate: null, endDate: selectedDate, timeZone: preferences.timeZone },
+    };
+    if (preview) {
+      updateLocalPreviewState(items, (current) => ({ ...current, items: [...current.items, toLocalView(proposal)] }));
+      return true;
+    }
+    if (!repository) throw new Error('할 일을 저장할 저장소에 연결할 수 없습니다.');
+    const result = await repository.saveDraft({ itemId: id, expectedLocalSequence: null, baseRevision: null, baseSnapshot: null, mutationKind: 'upsert', proposedSnapshot: proposal });
+    if (result.status === 'saved' || result.status === 'queued' || result.status === 'cancelled') return true;
+    if (result.status === 'conflict') throw new Error('같은 할 일이 다른 기기에서 먼저 생성되었습니다. 목록을 새로 고쳐 확인해 주세요.');
+    throw new Error('다른 탭의 변경 사항을 불러온 뒤 다시 저장해 주세요.');
   }
 
   function openNewEvent() {
@@ -288,45 +365,61 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
 
   return (
     <main className={styles.page}>
-      <div className={styles.homeHeaderActions}>
+      <header className={styles.pageHeader}>
+        <div className={styles.pageTitle}>
+          <span>{formatCalendarHeading(selectedToday)}</span>
+          <h1>{selectedToday === selectedDate ? '오늘' : formatCalendarHeading(selectedDate)}</h1>
+          {selectedToday === selectedDate && <p>지금 해야 할 일과, 놓치면 안 되는 시간.</p>}
+        </div>
         <TopActionMenu onAddTask={openNewTask} onAddEvent={openNewEvent} onSort={() => openPeriodDialog('sort')} onManageCategories={() => setCategoryEditorOpen(true)} />
-      </div>
-      <PeriodProgressSummary
-        items={displayItems} nowMs={nowMs} onAddSchedule={openNewEvent} onViewAll={() => openPeriodDialog('all')} onOpen={openDetails} orderIds={periodOrder} onOrderChange={persistPeriodOrder} />
-      {actionError && <p className={styles.feedback} role="alert">{actionError}</p>}
+      </header>
       <div className={styles.workspace} data-testid="home-workspace">
-        <section className={styles.calendarPanel}>
-          <MonthHeader items={displayItems} month={month} onChangeMonth={changeMonth} timeZone={preferences.timeZone} />
-          <MonthTaskGrid
-            categories={taskCategories}
+        <section className={styles.primaryColumn}>
+          <PeriodProgressSummary items={displayItems} nowMs={nowMs} onAddSchedule={openNewEvent} onViewAll={() => router.push(preview ? '/progress?preview=design' : '/progress')} onOpen={openDetails} orderIds={periodOrder} onOrderChange={persistPeriodOrder} />
+          <SelectedDayTasks
+            key={composeTask ? 'compose-task' : 'daily-tasks'}
+            autoOpenQuickAdd={composeTask}
+            categories={orderedTaskCategories}
+            categoryOrder={categoryOrder}
+            date={selectedDate}
+            displayMode="tasks"
+            heading={selectedDate === selectedToday ? '오늘 할 일' : `${formatCalendarHeading(selectedDate)} 할 일`}
             items={displayItems}
-            month={month}
-            onChangeMonth={setMonth}
-            onSelectDate={selectDate}
-            showHeading={false}
-            selectedDate={selectedDate}
+            onOpen={openDetails}
+            onQuickAdd={quickAddTask}
+            onQuickAddDismiss={() => updateRouteSearchParam('compose', null)}
+            onReorder={reorderTask}
+            onReorderCategories={reorderCategory}
+            onToggle={toggleTask}
+            taskOrder={activeTaskOrder}
           />
+          {actionError && <p className={styles.feedback} role="alert">{actionError}</p>}
         </section>
-        <SelectedDayTasks
-          categories={orderedTaskCategories}
-          categoryOrder={categoryOrder}
-          date={selectedDate}
-          items={displayItems}
-          taskOrder={activeTaskOrder}
-          onAdd={openNewTask}
-          onToggle={toggleTask}
-          onOpen={openDetails}
-          onReorder={reorderTask}
-          onReorderCategories={reorderCategory}
-        />
+        <aside className={styles.calendarPanel} aria-label="미니 캘린더와 일정">
+          <MonthHeader compact items={displayItems} month={month} onChangeMonth={changeMonth} timeZone={preferences.timeZone} />
+          <MonthTaskGrid categories={taskCategories} compact items={displayItems} month={month} onChangeMonth={setMonth} onSelectDate={selectDate} showHeading={false} selectedDate={selectedDate} weekStartsOn={preferences.weekStartsOn} />
+          <SelectedDayTasks date={selectedDate} displayMode="agenda" heading="선택 날짜 일정" items={displayItems} taskOrder={activeTaskOrder} onAddEvent={openNewEvent} onOpen={openDetails} />
+        </aside>
       </div>
       {detailsItem && (
         <CalendarItemDetailsDialog
           key={detailsItem.display.id}
           item={detailsItem}
+          allItems={displayItems}
           nowMs={nowMs}
           onToggleCountdown={toggleEventCountdown}
           onClose={() => setDetailsItemId(null)}
+          onDelete={() => { void deleteItem(detailsItem); }}
+          onComplete={() => {
+            const action = detailsItem.display.kind === 'task' ? toggleTask(detailsItem) : togglePeriodCompletion(detailsItem);
+            void action.catch((failure: unknown) => setActionError(failure instanceof Error ? failure.message : '완료 상태를 저장하지 못했습니다.'));
+          }}
+          onCalendar={() => {
+            const timing = detailsItem.display.timing;
+            const date = timing.type === 'date' ? timing.endDate : timing.type === 'time' ? getLocalDate(Date.parse(timing.startAt ?? timing.endAt ?? new Date(nowMs).toISOString()), timing.timeZone) : selectedDate;
+            router.push((preview ? '/calendar?preview=design&' : '/calendar?') + 'date=' + encodeURIComponent(date));
+            setDetailsItemId(null);
+          }}
           onEdit={() => {
             setEditorItemId(detailsItem.display.id);
             setDetailsItemId(null);
@@ -354,6 +447,8 @@ export function HomeExperience({ items, nowMs, initialDate, preview = false }: H
           onDelete={editorItem ? () => { void deleteItem(editorItem); } : undefined}
           initialReminderOffset={editorItem ? localPreview.reminderOffsets[editorItem.display.id] ?? null : null}
           taskCategories={taskCategories}
+          availableTasks={displayItems}
+          onToggleLinkedTask={toggleLinkedTaskCompletion}
           onLocalSave={preview ? async (proposal, reminderOffset) => {
             updateLocalPreviewState(items, (current) => {
               const previous = current.items.find((entry) => entry.display.id === proposal.id);
@@ -426,4 +521,13 @@ function getDefaultEventTiming(selectedDate: string, nowMs: number, timeZone: st
     date: selectedDate,
     time: `${String(Math.floor(roundedMinutes / 60)).padStart(2, '0')}:${String(roundedMinutes % 60).padStart(2, '0')}`,
   };
+}
+
+function createItemId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

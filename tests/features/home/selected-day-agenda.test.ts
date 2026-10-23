@@ -3,11 +3,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DESIGN_PREVIEW_DATE, DESIGN_PREVIEW_ITEMS } from '../../../src/features/home/preview-data';
 import { SelectedDayTasks } from '../../../src/features/home/SelectedDayTasks';
+import { getTaskCategories } from '../../../src/domain/task-categories';
 
 describe('selected day agenda', () => {
   it('puts tasks first and excludes duplicate D-day deadlines from the secondary agenda', () => {
     const html = renderToStaticMarkup(createElement(SelectedDayTasks, {
-      categories: [{ name: '기본', color: 'teal' }],
+      categories: getTaskCategories(DESIGN_PREVIEW_ITEMS),
       date: DESIGN_PREVIEW_DATE,
       items: DESIGN_PREVIEW_ITEMS,
       taskOrder: { pending: [], completed: [] },

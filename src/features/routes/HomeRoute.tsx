@@ -29,17 +29,19 @@ function HomeRouteContent({ initialNowMs }: { initialNowMs: number }) {
   return (
     <AppShell
       previewItems={localFixture.items}
+      todayDate={localDate}
       previewContent={(
         <HomeExperience
           key={localFixture.date}
           items={localFixture.items}
           nowMs={nowMs}
           initialDate={routeDate ?? localFixture.date}
+          todayDate={localDate}
           preview
         />
       )}
     >
-      <HomeExperience initialDate={routeDate ?? localDate} items={items} nowMs={nowMs} />
+      <HomeExperience initialDate={routeDate ?? localDate} todayDate={localDate} items={items} nowMs={nowMs} />
     </AppShell>
   );
 }

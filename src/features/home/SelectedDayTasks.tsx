@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import type { DragEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react';
+import type { DragEvent, FormEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react';
 import type { ItemView } from '../../domain/items';
 import { DEFAULT_TASK_CATEGORY, getStableItemColor, getTaskCategoryColor, type TaskCategory } from '../../domain/task-categories';
 import { selectCalendarAgenda } from '../../domain/projections';
@@ -24,9 +24,15 @@ type SelectedDayTasksProps = {
   categoryOrder?: readonly string[];
   onReorderCategories?: (sourceName: string, targetName: string, afterTarget: boolean) => void;
   readOnly?: boolean;
+  displayMode?: 'all' | 'tasks' | 'agenda';
+  heading?: string;
+  onQuickAdd?: (title: string) => Promise<boolean>;
+  autoOpenQuickAdd?: boolean;
+  onQuickAddDismiss?: () => void;
+  onAddEvent?: () => void;
 };
 
-export function SelectedDayTasks({ items, categories = [], date, taskOrder, onAdd, onToggle, onOpen, onReorder, categoryOrder = [], onReorderCategories, readOnly = false }: SelectedDayTasksProps) {
+export function SelectedDayTasks({ items, categories = [], date, taskOrder, onAdd, onToggle, onOpen, onReorder, categoryOrder = [], onReorderCategories, readOnly = false, displayMode = 'all', heading, onQuickAdd, autoOpenQuickAdd = false, onQuickAddDismiss, onAddEvent }: SelectedDayTasksProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const holdTimer = useRef<number | null>(null);
@@ -40,15 +46,35 @@ export function SelectedDayTasks({ items, categories = [], date, taskOrder, onAd
   const categoryDraggingRef = useRef(false);
   const [categoryDragging, setCategoryDragging] = useState<string | null>(null);
   const [categoryDropTarget, setCategoryDropTarget] = useState<string | null>(null);
-  const tasks = orderDailyTasks(items, date, taskOrder);
+  const [quickAddOverride, setQuickAddOverride] = useState<boolean | null>(null);
+  const quickAddOpen = quickAddOverride ?? autoOpenQuickAdd;
+  const [quickAddTitle, setQuickAddTitle] = useState('');
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [quickAddError, setQuickAddError] = useState('');
+  const tasks = displayMode === 'agenda' ? [] : orderDailyTasks(items, date, taskOrder);
   // C4: deadlines/windows are already in D-day; keep the secondary agenda limited to events.
-  const schedules = selectCalendarAgenda(items, date, 'Asia/Seoul').filter((item) => item.display.kind === 'event');
+  const schedules = displayMode === 'tasks' ? [] : selectCalendarAgenda(items, date, 'Asia/Seoul').filter((item) => item.display.kind === 'event');
   const pending = tasks.filter((item) => item.display.kind === 'task' && item.display.completion === 'pending');
   const completed = tasks.filter((item) => item.display.kind === 'task' && item.display.completion === 'completed');
-  const disabled = readOnly || !onAdd;
+  const disabled = readOnly || (!onAdd && !onQuickAdd);
   const canReorder = !readOnly && Boolean(onReorder);
   const canReorderCategories = !readOnly && Boolean(onReorderCategories);
   const orderedCategories = orderCategories(categories, categoryOrder);
+
+  async function submitQuickAdd(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = quickAddTitle.trim();
+    if (!title || !onQuickAdd || quickAddSaving) return;
+    setQuickAddSaving(true);
+    setQuickAddError('');
+    try {
+      const saved = await onQuickAdd(title);
+      if (saved) { setQuickAddTitle(''); setQuickAddOverride(false); onQuickAddDismiss?.(); }
+      else setQuickAddError('할 일을 저장하지 못했습니다.');
+    } catch (failure) {
+      setQuickAddError(failure instanceof Error ? failure.message : '할 일을 저장하지 못했습니다.');
+    } finally { setQuickAddSaving(false); }
+  }
 
   function beginDrag(event: DragEvent<HTMLLIElement>, itemId: string) {
     if (!canReorder) {
@@ -246,11 +272,10 @@ export function SelectedDayTasks({ items, categories = [], date, taskOrder, onAd
     );
   }
 
-  const categoryGroups = orderedCategories.map((category) => renderCategoryGroup(
-    category.name,
-    getTaskCategoryColor(category.color).color,
-    tasks.filter((item) => item.display.kind === 'task' && (item.display.category?.trim() || DEFAULT_TASK_CATEGORY.name).toLocaleLowerCase('ko-KR') === category.name.toLocaleLowerCase('ko-KR')),
-  ));
+  const categoryGroups = orderedCategories.flatMap((category) => {
+    const group = tasks.filter((item) => item.display.kind === 'task' && (item.display.category?.trim() || DEFAULT_TASK_CATEGORY.name).toLocaleLowerCase('ko-KR') === category.name.toLocaleLowerCase('ko-KR'));
+    return group.length > 0 ? [renderCategoryGroup(category.name, getTaskCategoryColor(category.color).color, group)] : [];
+  });
 
   function renderSchedule(item: ItemView) {
     const color = item.display.categoryColor
@@ -274,18 +299,21 @@ export function SelectedDayTasks({ items, categories = [], date, taskOrder, onAd
   return (
     <section className={styles.section} aria-label="선택한 날짜의 일정과 할 일">
       <div className={styles.heading}>
-        <h2>{formatCalendarHeading(date)}</h2>
-        <button aria-label="할 일 추가" className={styles.add} disabled={disabled} onClick={onAdd} type="button"><Icon name="plus" size={20} /></button>
+        <h2>{heading ?? formatCalendarHeading(date)}</h2>
+        {displayMode !== 'agenda' && <button aria-label="할 일 추가" className={styles.add} disabled={disabled} onClick={() => onQuickAdd ? setQuickAddOverride(true) : onAdd?.()} type="button"><Icon name="plus" size={17} /><span>새 할 일</span></button>}
+        {(displayMode === 'agenda' || displayMode === 'all') && onAddEvent && <button aria-label="새 일정 추가" className={styles.add} onClick={onAddEvent} type="button"><Icon name="plus" size={16} /><span>새 일정</span></button>}
       </div>
+      {quickAddOpen && onQuickAdd && <form className={styles.quickAdd} onSubmit={(event) => { void submitQuickAdd(event); }}><input aria-label="새 할 일 제목" autoFocus maxLength={200} onChange={(event) => setQuickAddTitle(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); setQuickAddOverride(false); setQuickAddTitle(''); onQuickAddDismiss?.(); } }} placeholder="할 일 제목" value={quickAddTitle} /><button disabled={!quickAddTitle.trim() || quickAddSaving} type="submit">추가</button><button aria-label="입력 닫기" onClick={() => { setQuickAddOverride(false); setQuickAddTitle(''); onQuickAddDismiss?.(); }} type="button">취소</button></form>}
+      {quickAddError && <p className={styles.empty} role="alert">{quickAddError}</p>}
       <section aria-label="할 일" className={styles.taskSection}>
         {tasks.length > 0 && categoryGroups.length > 0 ? (
           <div className={styles.groups}>{categoryGroups}</div>
         ) : <p className={styles.empty}>등록된 할 일이 없습니다.</p>}
       </section>
-      {schedules.length > 0 && (
+      {(schedules.length > 0 || displayMode === 'agenda') && (
         <section aria-label="일정" className={styles.agendaSection}>
-          <div className={styles.subheading}><h3>일정 <span className={styles.categoryCount}>{schedules.length}</span></h3></div>
-          <ul className={styles.scheduleList}>{schedules.map(renderSchedule)}</ul>
+          <div className={styles.subheading}><h3>선택 날짜 일정 <span className={styles.categoryCount}>{schedules.length}</span></h3></div>
+          {schedules.length > 0 ? <ul className={styles.scheduleList}>{schedules.map(renderSchedule)}</ul> : <p className={styles.empty}>이 날짜에 등록된 일정이 없습니다.</p>}
         </section>
       )}
     </section>

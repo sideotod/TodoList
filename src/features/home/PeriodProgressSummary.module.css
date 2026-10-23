@@ -8,9 +8,11 @@
 .cardGrid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: stretch;
-  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr);
+  padding: 8px 18px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 82%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--color-surface-muted) 62%, var(--color-surface));
 }
 
 .summaryHeader {
@@ -55,7 +57,7 @@
 
 .sortableCard {
   min-width: 0;
-  height: 72px;
+  height: 39px;
   border-radius: var(--radius-card-compact);
   touch-action: pan-y;
   transition: opacity 160ms var(--ease-standard), transform 180ms var(--ease-panel);
@@ -133,12 +135,13 @@
   }
 
   .cardGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 12px;
     gap: var(--space-2);
   }
 
   .sortableCard {
-    height: 72px;
+    height: 39px;
   }
 }
 
@@ -159,7 +162,7 @@
   }
 
   .sortableCard {
-    height: 72px;
+    height: 39px;
   }
 }
 

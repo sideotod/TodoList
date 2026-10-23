@@ -9,7 +9,7 @@ const previewUrl = `http://127.0.0.1:${validPreviewPort}`;
 
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: ['item-editor-preview.spec.ts', 'week-all-day-lane.spec.ts', 'phase4-calendar-navigation.spec.ts'],
+  testMatch: ['item-editor-preview.spec.ts', 'week-all-day-lane.spec.ts', 'phase4-calendar-navigation.spec.ts', 'macos-v4-visual.spec.ts'],
   workers: 1,
   retries: 0,
   timeout: 30_000,

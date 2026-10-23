@@ -6,7 +6,7 @@
   padding: 28px 0 12px;
 }
 
-.page[data-view='week'] {
+.page[data-view='week'], .page[data-view='day'], .page[data-view='month'], .page[data-view='year'] {
   box-sizing: border-box;
   display: flex;
   height: 100%;
@@ -61,7 +61,7 @@
 .weekdayHeader {
   display: grid;
   min-height: 32px;
-  grid-template-columns: 48px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 48px repeat(var(--calendar-day-count, 7), minmax(0, 1fr));
   align-items: center;
   margin-top: var(--space-2);
   padding: 0 var(--space-2) 5px 0;
@@ -84,7 +84,7 @@
 .dateHeader {
   display: grid;
   min-height: 42px;
-  grid-template-columns: 48px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 48px repeat(var(--calendar-day-count, 7), minmax(0, 1fr));
   align-items: stretch;
   padding: 0 var(--space-2) 0 0;
 }
@@ -192,6 +192,28 @@
   outline-offset: 2px;
 }
 
+.monthLayout { display: grid; min-height: 0; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr) minmax(230px, 285px); gap: 26px; overflow: auto; padding: 12px 0 8px; }
+.monthLayout > section:first-child { min-height: 0; }
+.monthLayout > section:last-child { align-self: start; }
+.yearGrid { display: grid; min-height: 0; flex: 1 1 auto; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 14px; overflow: auto; padding: 14px 2px; }
+.yearMonth { min-width: 0; padding: 10px 11px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
+.yearMonth h2 { margin: 0 0 8px; color: var(--color-foreground); font-size: 12px; font-weight: 620; }
+.yearWeekdays, .yearDays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); justify-items: center; }
+.yearWeekdays { margin-bottom: 3px; color: var(--color-muted); font-size: 9px; }
+.yearDays { row-gap: 2px; }
+.yearDays button { position: relative; width: 23px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--color-secondary); cursor: pointer; font: inherit; font-size: 9px; font-variant-numeric: tabular-nums; }
+.yearDays button[data-has-items='true']::after { position: absolute; right: 50%; bottom: 1px; width: 3px; height: 3px; transform: translateX(50%); border-radius: 50%; background: var(--color-accent); content: ''; }
+.yearDays button:disabled { visibility: hidden; }
+.yearDays button:hover { background: var(--color-accent-soft); color: var(--color-accent); }
+.yearDays button.selectedYearDay { background: var(--color-accent); color: white; }
+.yearDays button.selectedYearDay::after { background: white; }
+.yearDays button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+@media (max-width: 1050px) {
+  .yearGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: none; }
+  .monthLayout { grid-template-columns: minmax(0, 1fr) minmax(205px, 250px); gap: 18px; }
+}
+
 @media (max-width: 760px) {
   .page {
     width: calc(100% - 32px);
@@ -207,7 +229,7 @@
     grid-template-columns: 38px repeat(7, minmax(0, 1fr));
   }
 
-  .page[data-view='week'] {
+  .page[data-view='week'], .page[data-view='day'], .page[data-view='month'], .page[data-view='year'] {
     padding: 82px 0 24px;
   }
 
@@ -215,4 +237,7 @@
     min-height: 260px;
     max-height: min(620px, calc(100svh - 330px));
   }
+  .monthLayout { grid-template-columns: minmax(0, 1fr); overflow: auto; }
+  .monthLayout > section:last-child { max-height: none; }
+  .yearGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; }
 }

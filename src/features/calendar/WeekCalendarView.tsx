@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { UIEvent } from 'react';
+import type { CSSProperties, UIEvent } from 'react';
 import { Temporal } from '@js-temporal/polyfill';
 import type { ItemView } from '../../domain/items';
 import { getLocalDate } from '../../domain/time';
@@ -9,17 +9,22 @@ import { updateRouteDate } from '../../lib/route-date';
 import { CALENDAR_END_HOUR, CALENDAR_START_HOUR } from './calendar-time-range';
 import { PeriodList } from './PeriodList';
 import { shiftDate } from './calendar-dates';
+import { formatCalendarHeading, getDateMonth, getMonthCells, getMonthHeading, getWeekdayLabels, moveToMonthDate, shiftMonth } from './calendar-dates';
 import { isKoreanPublicHoliday } from './korean-holidays';
 import { WeekAllDayLane } from './WeekAllDayLane';
 import { WeekCalendarHeader } from './WeekCalendarHeader';
 import { WeekTimeGrid } from './WeekTimeGrid';
+import { WeekTaskLane } from './WeekTaskLane';
+import { CalendarMonthGrid } from './CalendarMonthGrid';
 import styles from './WeekCalendarView.module.css';
+import { selectCalendarAgenda } from '../../domain/projections';
 
+export type CalendarViewMode = 'day' | 'week' | 'month' | 'year' | 'periods';
 export type WeekCalendarViewProps = {
   items: readonly ItemView[];
   nowMs: number;
   initialDate?: string;
-  showingPeriods: boolean;
+  view: CalendarViewMode;
   weekStartsOn: 0 | 1;
   timeFormat: '24h' | '12h';
   timeZone: string;
@@ -27,14 +32,15 @@ export type WeekCalendarViewProps = {
   onAddEvent: (date: string) => void;
   onAdd(date: string, startTime: string): void;
   onOpen(item: ItemView): void;
-  onViewChange: (view: 'week' | 'periods') => void;
+  onToggleTask(item: ItemView): void;
+  onViewChange: (view: CalendarViewMode) => void;
 };
 
 export function WeekCalendarView({
   items,
   nowMs,
   initialDate,
-  showingPeriods,
+  view,
   weekStartsOn,
   timeFormat,
   timeZone,
@@ -42,6 +48,7 @@ export function WeekCalendarView({
   onAddEvent,
   onAdd,
   onOpen,
+  onToggleTask,
   onViewChange,
 }: WeekCalendarViewProps) {
   const today = getLocalDate(nowMs, timeZone);
@@ -52,11 +59,16 @@ export function WeekCalendarView({
   const currentDate = Temporal.Instant.fromEpochMilliseconds(nowMs).toZonedDateTimeISO(timeZone).toPlainDate().toString();
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dates = getWeekDates(anchorDate, weekStartsOn);
-  const startDate = dates[0] ?? anchorDate;
-  const endDate = dates[6] ?? anchorDate;
+  const displayDates = view === 'day' ? [anchorDate] : dates;
+  const startDate = displayDates[0] ?? anchorDate;
+  const endDate = displayDates[displayDates.length - 1] ?? anchorDate;
+  const showingPeriods = view === 'periods';
 
-  function moveWeek(amount: number) {
-    const nextDate = shiftDate(anchorDate, amount * 7);
+  function moveDate(amount: number) {
+    const nextDate = view === 'day' ? shiftDate(anchorDate, amount)
+      : view === 'month' ? moveToMonthDate(anchorDate, shiftMonth(getDateMonth(anchorDate), amount))
+        : view === 'year' ? moveToMonthDate(anchorDate, shiftMonth(getDateMonth(anchorDate), amount * 12))
+          : shiftDate(anchorDate, amount * 7);
     setAnchorDate(nextDate);
     updateRouteDate(nextDate);
   }
@@ -95,46 +107,57 @@ export function WeekCalendarView({
     const isCurrentWeek = startDate <= currentDate && currentDate <= endDate;
     const preferredStartHour = isCurrentWeek ? currentTime.hour + currentTime.minute / 60 - 1 : null;
     scroller.scrollTop = getInitialScrollTop(preferredStartHour, scroller.clientHeight);
-  }, [currentDate, endDate, showingPeriods, startDate, timeZone]);
+  }, [currentDate, endDate, showingPeriods, startDate, timeZone, view]);
+
+  const rangeLabel = view === 'day' ? formatCalendarHeading(anchorDate)
+    : view === 'month' ? getMonthHeading(getDateMonth(anchorDate))
+      : view === 'year' ? anchorDate.slice(0, 4) + '년'
+        : view === 'periods' ? '기간 일정'
+          : formatRange(startDate, endDate);
 
   return (
-    <main className={styles.page} data-view={showingPeriods ? 'periods' : 'week'}>
+    <main className={styles.page} data-view={view}>
       <WeekCalendarHeader
-        rangeLabel={formatRange(startDate, endDate)}
-        onMoveWeek={moveWeek}
+        rangeLabel={rangeLabel}
+        onMoveDate={moveDate}
         onToday={moveToToday}
         onAddTask={() => onAddTask(anchorDate)}
         onAddEvent={() => onAddEvent(anchorDate)}
-        showingPeriods={showingPeriods}
+        view={view}
         onViewChange={onViewChange}
       />
       {showingPeriods ? (
         <PeriodList items={items} nowMs={nowMs} onOpen={onOpen} />
+      ) : view === 'month' ? (
+        <CalendarMonthGrid items={items} month={getDateMonth(anchorDate)} selectedDate={anchorDate} timeZone={timeZone} weekStartsOn={weekStartsOn} onSelectDate={(date) => { setAnchorDate(date); updateRouteDate(date); onViewChange('day'); }} onAddEvent={onAddEvent} onOpen={onOpen} />
+      ) : view === 'year' ? (
+        <YearCalendar items={items} year={Number(anchorDate.slice(0, 4))} selectedDate={anchorDate} weekStartsOn={weekStartsOn} onSelectDate={(date) => { setAnchorDate(date); updateRouteDate(date); onViewChange('month'); }} />
       ) : (
-        <div aria-label="주간 캘린더 가로 스크롤 영역" className={styles.weekViewport} onScroll={handleWeekHorizontalScroll} role="region" tabIndex={0}>
+        <div aria-label={view === 'day' ? '일간 캘린더 시간표' : '주간 캘린더 가로 스크롤 영역'} className={styles.weekViewport} onScroll={handleWeekHorizontalScroll} role="region" tabIndex={0}>
           <div className={styles.weekCanvas}>
-            <div aria-label="요일" className={styles.weekdayHeader}>
+            <div aria-label="요일" className={styles.weekdayHeader} style={{ '--calendar-day-count': displayDates.length } as CSSProperties}>
               <span aria-hidden="true" className={styles.weekGutter} />
-              {dates.map((date) => (
+              {displayDates.map((date) => (
                 <div className={getWeekdayClassName(date)} key={date}>
                   <span>{weekday(date)}</span>
                 </div>
               ))}
             </div>
-            <div aria-label="주간 날짜" className={styles.dateHeader}>
+            <div aria-label="주간 날짜" className={styles.dateHeader} style={{ '--calendar-day-count': displayDates.length } as CSSProperties}>
               <span aria-hidden="true" className={styles.weekGutter} />
-              {dates.map((date) => (
+              {displayDates.map((date) => (
                 <div aria-current={date === today ? 'date' : undefined} className={getDateClassName(date, today)} key={date}>
                   <strong>{Number(date.slice(-2))}</strong>
                 </div>
               ))}
             </div>
             <div className={styles.allDay}>
-              <WeekAllDayLane dates={dates} items={items} timeZone={timeZone} onOpen={onOpen} />
+              <WeekAllDayLane dates={displayDates} items={items} timeZone={timeZone} onOpen={onOpen} />
             </div>
+            <WeekTaskLane dates={displayDates} items={items} timeZone={timeZone} onOpen={onOpen} onToggle={onToggleTask} />
             <div aria-label="시간표 스크롤 영역" className={`${styles.timeScroller} ${isTimeScrolling ? styles.scrolling : ''}`} data-scrolling={isTimeScrolling} onScroll={handleTimeScroll} ref={timeScrollerRef} role="region" tabIndex={0}>
               <WeekTimeGrid
-                dates={dates}
+                dates={displayDates}
                 today={today}
                 items={items}
                 timeZone={timeZone}
@@ -199,4 +222,29 @@ function formatRange(startDate: string, endDate: string): string {
   if (startYear !== endYear) return `${startYear}년 ${startMonth}월 ${startDay}일 – ${endYear}년 ${endMonth}월 ${endDay}일`;
   if (startMonth !== endMonth) return `${startYear}년 ${startMonth}월 ${startDay}일 – ${endMonth}월 ${endDay}일`;
   return `${startYear}년 ${startMonth}월 ${startDay}일 – ${endDay}일`;
+}
+
+function YearCalendar({ items, year, selectedDate, weekStartsOn, onSelectDate }: { items: readonly ItemView[]; year: number; selectedDate: string; weekStartsOn: 0 | 1; onSelectDate: (date: string) => void }) {
+  const weekdays = getWeekdayLabels(weekStartsOn);
+  return (
+    <section aria-label={year + '년 캘린더'} className={styles.yearGrid}>
+      {Array.from({ length: 12 }, (_, index) => {
+        const month = String(index + 1).padStart(2, '0');
+        const key = String(year) + '-' + month;
+        const cells = getMonthCells(key, weekStartsOn);
+        return (
+          <article className={styles.yearMonth} key={key}>
+            <h2>{getMonthHeading(key).replace(String(year) + '년 ', '')}</h2>
+            <div aria-hidden="true" className={styles.yearWeekdays}>{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
+            <div className={styles.yearDays}>
+              {cells.map((cell) => {
+                const count = selectCalendarAgenda(items, cell.date, 'Asia/Seoul').length;
+                return <button aria-label={formatCalendarHeading(cell.date) + (count ? ' 일정 ' + count + '개' : '')} aria-pressed={cell.date === selectedDate} className={cell.date === selectedDate ? styles.selectedYearDay : ''} data-has-items={count > 0} disabled={!cell.inMonth} key={cell.date} onClick={() => onSelectDate(cell.date)} type="button">{cell.dayOfMonth}</button>;
+              })}
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  );
 }

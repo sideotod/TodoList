@@ -80,6 +80,10 @@
   outline: var(--focus-ring-width) solid var(--color-accent);
 }
 
+@media (min-width: 761px) {
+  .nav { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .indicator,
   .icon { transition: none; }

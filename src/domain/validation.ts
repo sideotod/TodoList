@@ -300,9 +300,9 @@ function validateChecklist(value: unknown, issues: FieldIssue[]): void {
       issue(issues, path, 'invalid_type', '체크리스트 항목 객체가 필요합니다.');
       continue;
     }
-    const keys = ['id', 'title', 'completed'] as const;
+    const keys = ['id', 'title', 'completed', 'linkedTaskId'] as const;
     checkKeys(entry, keys, path, issues, true);
-    requireOwnKeys(entry, keys, path, issues);
+    requireOwnKeys(entry, ['id', 'title', 'completed'], path, issues);
     if (!isNonEmptyString(entry.id)) {
       issue(issues, `${path}.id`, 'required', '고유한 ID가 필요합니다.');
     } else if (ids.has(entry.id)) {
@@ -313,6 +313,9 @@ function validateChecklist(value: unknown, issues: FieldIssue[]): void {
     checkStringField(entry, 'title', `${path}.title`, issues, MAX_TITLE_LENGTH);
     if (typeof entry.completed !== 'boolean') {
       issue(issues, `${path}.completed`, 'invalid_type', '완료 여부는 boolean이어야 합니다.');
+    }
+    if (Object.hasOwn(entry, 'linkedTaskId') && !isNonEmptyString(entry.linkedTaskId)) {
+      issue(issues, `${path}.linkedTaskId`, 'invalid_value', '연결된 할 일 ID는 비어 있지 않은 문자열이어야 합니다.');
     }
   }
 }

@@ -120,6 +120,15 @@ describe('validateProposedItem', () => {
     expect(validateProposedItem(makeDeadline({ checklist: duplicateIds })).valid).toBe(false);
   });
 
+  it('accepts legacy independent checklist rows and validates optional stable task links', () => {
+    const linked = makeDeadline({ checklist: [{ id: 'step-1', title: '자료 준비', completed: false, linkedTaskId: 'task-1' }] });
+    const legacy = makeDeadline({ checklist: [{ id: 'step-2', title: '기존 항목', completed: true }] });
+
+    expect(validateProposedItem(linked).valid).toBe(true);
+    expect(validateProposedItem(legacy).valid).toBe(true);
+    expect(validateProposedItem(makeDeadline({ checklist: [{ id: 'step-3', title: '잘못된 연결', completed: false, linkedTaskId: '' }] })).valid).toBe(false);
+  });
+
   it('metadata_not_allowed_in_proposal', () => {
     expect(validateProposedItem({ ...makeTask(), revision: 1 }).valid).toBe(false);
   });

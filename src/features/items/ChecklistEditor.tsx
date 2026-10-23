@@ -2,6 +2,8 @@
 
 import { useState, type KeyboardEvent } from 'react';
 import type { PeriodChecklistItem } from '../../domain/items';
+import type { ItemView } from '../../domain/items';
+import { isItemDeleted } from '../../domain/projections';
 import { MAX_CHECKLIST_ITEMS } from '../../domain/validation';
 import styles from './ChecklistEditor.module.css';
 
@@ -10,11 +12,15 @@ export function ChecklistEditor({
   onChange,
   disabled = false,
   showHeading = true,
+  availableTasks = [],
+  onToggleLinkedTask,
 }: {
   value: readonly PeriodChecklistItem[];
   onChange: (next: PeriodChecklistItem[]) => void;
   disabled?: boolean;
   showHeading?: boolean;
+  availableTasks?: readonly ItemView[];
+  onToggleLinkedTask?: (taskId: string, completed: boolean) => Promise<void>;
 }) {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
@@ -39,31 +45,60 @@ export function ChecklistEditor({
     onChange(value.filter((item) => item.id !== itemId));
   }
 
+  function chooseLinkedTask(item: PeriodChecklistItem, taskId: string) {
+    const linkedTask = availableTasks.find((task) => task.display.id === taskId && task.display.kind === 'task');
+    if (!taskId || !linkedTask || linkedTask.display.kind !== 'task') {
+      const currentTask = item.linkedTaskId ? availableTasks.find((task) => task.display.id === item.linkedTaskId && task.display.kind === 'task') : null;
+      const { linkedTaskId: removedId, ...unlinked } = item;
+      void removedId;
+      onChange(value.map((entry) => entry.id === item.id ? { ...unlinked, title: currentTask?.display.kind === 'task' ? currentTask.display.title : item.title, completed: currentTask?.display.kind === 'task' ? currentTask.display.completion === 'completed' : item.completed } : entry));
+      return;
+    }
+    update(item.id, { linkedTaskId: taskId, title: linkedTask.display.title, completed: linkedTask.display.completion === 'completed' });
+  }
+
+  async function toggleChecklistItem(item: PeriodChecklistItem, completed: boolean) {
+    if (item.linkedTaskId) {
+      if (!onToggleLinkedTask) return;
+      try { await onToggleLinkedTask(item.linkedTaskId, completed); setError(''); }
+      catch (failure) { setError(failure instanceof Error ? failure.message : '연결된 할 일을 수정하지 못했습니다.'); }
+      return;
+    }
+    update(item.id, { completed });
+  }
+
   return (
     <section className={styles.section} aria-label="기간 중 할 일">
       {showHeading && <h3>기간 중 할 일</h3>}
       {value.length === 0 ? <p className={styles.empty}>아직 등록된 하위 할 일이 없습니다.</p> : (
         <ul className={styles.list}>
-          {value.map((item) => (
-            <li className={styles.row} key={item.id}>
+          {value.map((item) => {
+            const linkedTask = item.linkedTaskId ? availableTasks.find((task) => task.display.id === item.linkedTaskId && task.display.kind === 'task') : null;
+            const linkedDisplay = linkedTask?.display.kind === 'task' ? linkedTask.display : null;
+            return <li className={styles.row} key={item.id}>
               <input
-                aria-label={`${item.title} 완료`}
-                checked={item.completed}
+                aria-label={item.title + ' 완료'}
+                checked={linkedDisplay ? linkedDisplay.completion === 'completed' : item.completed}
                 className={styles.checkbox}
-                disabled={disabled}
-                onChange={(event) => update(item.id, { completed: event.currentTarget.checked })}
+                disabled={disabled || Boolean(item.linkedTaskId && !onToggleLinkedTask)}
+                onChange={(event) => { void toggleChecklistItem(item, event.currentTarget.checked); }}
                 type="checkbox"
               />
               <input
                 aria-label="하위 할 일 이름"
-                className={`${styles.title} ${item.completed ? styles.done : ''}`}
-                disabled={disabled}
+                className={styles.title + ' ' + (linkedDisplay?.completion === 'completed' || item.completed ? styles.done : '')}
+                disabled={disabled || Boolean(linkedDisplay)}
                 maxLength={200}
                 onChange={(event) => update(item.id, { title: event.currentTarget.value })}
-                value={item.title}
+                value={linkedDisplay?.title ?? item.title}
               />
+              <select aria-label={item.title + ' 연결된 할 일'} className={styles.linkPicker} disabled={disabled} onChange={(event) => chooseLinkedTask(item, event.currentTarget.value)} value={item.linkedTaskId ?? ''}>
+                <option value="">독립 항목</option>
+                {item.linkedTaskId && !linkedDisplay && <option value={item.linkedTaskId}>삭제된 할 일 · 연결 해제</option>}
+                {availableTasks.filter((task) => task.display.kind === 'task' && !isItemDeleted(task)).map((task) => task.display.kind === 'task' ? <option key={task.display.id} value={task.display.id}>{task.display.title}</option> : null)}
+              </select>
               <button
-                aria-label={`${item.title} 삭제`}
+                aria-label={item.title + ' 삭제'}
                 className={styles.remove}
                 disabled={disabled}
                 onClick={() => remove(item.id)}
@@ -71,8 +106,8 @@ export function ChecklistEditor({
               >
                 <span aria-hidden="true">×</span>
               </button>
-            </li>
-          ))}
+            </li>;
+          })}
         </ul>
       )}
       <div className={styles.addForm}>

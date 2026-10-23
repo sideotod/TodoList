@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../../auth/session';
-import { useSyncState } from '../../lib/repository-context';
+import { useItems, useSyncState } from '../../lib/repository-context';
 import { useDesktopPreferences } from '../../lib/desktop-preferences';
 import { AppShell } from '../shell/AppShell';
 import { BackupControls } from './BackupControls';
@@ -15,10 +15,20 @@ import { useForegroundClock } from '../shell/useForegroundClock';
 import { DesktopPreferencesControls } from './DesktopPreferencesControls';
 import { SettingsSection } from './SettingsSection';
 import { LocalDataSettings } from './LocalDataSettings';
+import { HomeExperience } from '../home/HomeExperience';
 import styles from './ProfileRoute.module.css';
+
+type SettingsTab = 'screen' | 'calendar' | 'data';
+const tabs: ReadonlyArray<{ id: SettingsTab; label: string }> = [
+  { id: 'screen', label: '화면' },
+  { id: 'calendar', label: '캘린더' },
+  { id: 'data', label: '데이터' },
+];
 
 export function ProfileRoute({ initialNowMs }: { initialNowMs: number }) {
   const nowMs = useForegroundClock(initialNowMs);
+  const router = useRouter();
+  const serverItems = useItems();
   const { session, requestSignOut, busy, actionError } = useAuth();
   const syncState = useSyncState();
   const localDate = getLocalDate(nowMs, 'Asia/Seoul');
@@ -26,7 +36,7 @@ export function ProfileRoute({ initialNowMs }: { initialNowMs: number }) {
   const previewState = useLocalPreviewState(localFixture.items);
   const preferences = useDesktopPreferences();
   const [localError, setLocalError] = useState<string | null>(null);
-
+  const [activeTab, setActiveTab] = useState<SettingsTab>('screen');
   async function handleSignOut() {
     setLocalError(null);
     try {
@@ -36,54 +46,82 @@ export function ProfileRoute({ initialNowMs }: { initialNowMs: number }) {
     }
   }
 
-  const preview = (
-    <main className={styles.preview}>
-      <h1>설정</h1>
-      <div className={styles.identity}>
-        <Image alt="" className={styles.avatar} height={32} src="/design/user.svg" unoptimized width={32} />
-        <div className={styles.identityCopy}>
-          <strong>{session.status === 'signed-in' ? session.displayName || '사용자' : '로컬 사용'}</strong>
-          <span>{session.status === 'signed-in' ? session.email : '일정과 설정은 이 브라우저에 저장되며 다른 기기와 동기화되지 않습니다.'}</span>
-        </div>
-        <span className={styles.value}>{session.status === 'signed-in' ? '로그인됨' : '이 기기'}</span>
-      </div>
-      <DesktopPreferencesControls />
-      <SettingsSection title="알림">
-        <LocalNotificationSettings items={previewState.items} enabled={previewState.remindersEnabled} />
-      </SettingsSection>
-      <SettingsSection title="데이터 관리">
-        <LocalDataSettings fallback={localFixture.items} state={previewState} preferences={preferences} />
-      </SettingsSection>
-    </main>
+  function closeInspector() {
+    router.push(new URLSearchParams(window.location.search).has('preview') ? '/?preview=design' : '/');
+  }
+
+  const homePreview = <HomeExperience items={previewState.items} nowMs={nowMs} todayDate={localDate} preview />;
+  const homeAccount = <HomeExperience items={serverItems} nowMs={nowMs} todayDate={localDate} />;
+  const previewInspector = (
+    <SettingsInspector accountTitle="로컬 메모" activeTab={activeTab} onClose={closeInspector} onSelectTab={setActiveTab}>
+      {activeTab === 'screen' && <>
+        <DesktopPreferencesControls mode="screen" />
+        <SettingsSection title="알림"><LocalNotificationSettings enabled={previewState.remindersEnabled} items={previewState.items} /></SettingsSection>
+        <p className={styles.note}>이 프로토타입은 기존 GitHub 앱과 달리 서버 계정 동기화를 하지 않습니다. 메모 데이터는 가능한 경우 이 브라우저의 로컬 저장소에 보관됩니다.</p>
+      </>}
+      {activeTab === 'calendar' && <DesktopPreferencesControls mode="calendar" />}
+      {activeTab === 'data' && <>
+        <SettingsSection title="데이터 관리"><LocalDataSettings fallback={localFixture.items} preferences={preferences} state={previewState} /></SettingsSection>
+      </>}
+    </SettingsInspector>
+  );
+  const accountInspector = (
+    <SettingsInspector accountTitle={session.status === 'signed-in' ? session.displayName || session.email || 'Google 계정' : '계정'} activeTab={activeTab} onClose={closeInspector} onSelectTab={setActiveTab}>
+      {activeTab === 'screen' && <>
+        <DesktopPreferencesControls mode="screen" />
+        <SettingsSection title="알림"><p className={styles.note}>계정 연결 환경의 기기 알림은 아직 제공되지 않습니다. 로컬 미리보기에서는 브라우저 권한을 허용했을 때 앱이 열려 있는 동안 알림을 보낼 수 있습니다.</p></SettingsSection>
+      </>}
+      {activeTab === 'calendar' && <DesktopPreferencesControls mode="calendar" />}
+      {activeTab === 'data' && <>
+        <SettingsSection title="계정"><p className={styles.syncMessage}>{session.status === 'signed-in' ? session.email || 'Google 계정으로 로그인했습니다.' : '로그인 상태를 확인하고 있습니다.'}</p></SettingsSection>
+        <SettingsSection title="기기 동기화">
+          <p className={styles.syncMessage}>{getSyncMessage(syncState.connection, syncState.pendingCount, syncState.conflictCount)}</p>
+          {syncState.localJournal === 'unavailable' && <p className={styles.error} role="alert">기기에 변경사항을 저장할 수 없습니다.</p>}
+          {syncState.error && <p className={styles.error} role="alert">{syncState.error.message}</p>}
+        </SettingsSection>
+        <BackupControls />
+        <button className={styles.signOut} disabled={busy} onClick={() => { void handleSignOut(); }} type="button">{busy ? '로그아웃 중…' : '로그아웃'}</button>
+        {(localError || actionError) && <p className={styles.error} role="alert">{localError || actionError}</p>}
+      </>}
+    </SettingsInspector>
   );
 
-  const account = session.status === 'signed-in' ? (
-    <main className={styles.page}>
-      <h1>설정</h1>
-      <div className={styles.identity}>
-        <Image alt="" className={styles.avatar} height={32} src="/design/user.svg" unoptimized width={32} />
-        <div className={styles.identityCopy}>
-          <strong>{session.displayName || 'Google 계정'}</strong>
-          <span>{session.email}</span>
-        </div>
-        <span className={styles.value}>로그인됨</span>
-      </div>
-      <SettingsSection title="기기 동기화">
-        <p className={styles.syncMessage}>{getSyncMessage(syncState.connection, syncState.pendingCount, syncState.conflictCount)}</p>
-        {syncState.localJournal === 'unavailable' && <p className={styles.error} role="alert">기기에 변경사항을 저장할 수 없습니다.</p>}
-        {syncState.error && <p className={styles.error} role="alert">{syncState.error.message}</p>}
-      </SettingsSection>
-      <DesktopPreferencesControls />
-      <BackupControls />
-      <button className={styles.signOut} type="button" disabled={busy} onClick={handleSignOut}>{busy ? '로그아웃 중…' : '로그아웃'}</button>
-      {(localError || actionError) && <p className={styles.error} role="alert">{localError || actionError}</p>}
-    </main>
-  ) : <main className={styles.page}><h1>설정</h1></main>;
-
   return (
-    <AppShell previewItems={localFixture.items} previewContent={preview}>
-      {account}
+    <AppShell
+      inspector={accountInspector}
+      onCloseInspector={closeInspector}
+      previewContent={homePreview}
+      previewInspector={previewInspector}
+      previewItems={localFixture.items}
+      todayDate={localDate}
+    >
+      {homeAccount}
     </AppShell>
+  );
+}
+
+function SettingsInspector({ accountTitle, activeTab, onClose, onSelectTab, children }: {
+  accountTitle: string;
+  activeTab: SettingsTab;
+  onClose: () => void;
+  onSelectTab: (tab: SettingsTab) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <header className={styles.inspectorHeader}>
+        <span>설정 · {accountTitle}</span>
+        <button aria-label="설정 닫기" onClick={onClose} type="button">×</button>
+      </header>
+      <div className={styles.inspectorBody}>
+        <span className={styles.eyebrow}>PREFERENCES</span>
+        <h2>설정</h2>
+        <div aria-label="설정 범주" className={styles.tabs} role="tablist">
+          {tabs.map((tab) => <button aria-controls="settings-tab-panel" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? styles.activeTab : ''} id={`settings-tab-${tab.id}`} key={tab.id} onClick={() => onSelectTab(tab.id)} role="tab" type="button">{tab.label}</button>)}
+        </div>
+        <div aria-labelledby={`settings-tab-${activeTab}`} className={styles.tabPanel} id="settings-tab-panel" role="tabpanel">{children}</div>
+      </div>
+    </>
   );
 }
 

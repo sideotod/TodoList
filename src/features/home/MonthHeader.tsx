@@ -11,9 +11,10 @@ type MonthHeaderProps = {
   items: readonly ItemView[];
   timeZone: string;
   onChangeMonth: (month: string) => void;
+  compact?: boolean;
 };
 
-export function MonthHeader({ month, items, timeZone, onChangeMonth }: MonthHeaderProps) {
+export function MonthHeader({ month, items, timeZone, onChangeMonth, compact = false }: MonthHeaderProps) {
   const completedTasks = items.filter((item) => {
     if (item.display.kind !== 'task' || item.display.completion !== 'completed') return false;
     const timing = item.display.timing;
@@ -26,10 +27,10 @@ export function MonthHeader({ month, items, timeZone, onChangeMonth }: MonthHead
   }).length;
 
   return (
-    <header className={styles.header}>
+    <header className={`${styles.header}${compact ? ` ${styles.compact}` : ''}`}>
       <div className={styles.headingCopy}>
-        <h1>{getMonthHeading(month)}</h1>
-        <span>이번 달 {completedTasks}개 완료</span>
+        <h2>{getMonthHeading(month)}</h2>
+        {!compact && <span>이번 달 {completedTasks}개 완료</span>}
       </div>
       <nav aria-label="월 이동" className={styles.controls}>
         <button aria-label="이전 달" onClick={() => onChangeMonth(shiftMonth(month, -1))} type="button">

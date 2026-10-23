@@ -1,10 +1,10 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { Suspense, useEffect, useState, useSyncExternalStore } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import type { ItemView } from '../../domain/items';
-import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
+import { useLayoutEffect } from 'react';
 import { useAuth } from '../../auth/session';
 import { isDesignPreview, subscribeToLocationChanges } from '../../lib/design-preview';
 import { useItems, useRepository, useRepositoryStatus } from '../../lib/repository-context';
@@ -14,17 +14,25 @@ import { SupabaseSetupGuide } from './SupabaseSetupGuide';
 import { SignInScreen } from './SignInScreen';
 import { useLocalPreviewState } from '../../lib/local-preview-store';
 import { useDesktopPreferences } from '../../lib/desktop-preferences';
+import { DesktopSidebar } from './DesktopSidebar';
+import { GlobalSearch } from './GlobalSearch';
+import { Icon } from '../ui/Icon';
 import { TodoLogo } from './TodoLogo';
 import styles from './AppShell.module.css';
 
 type AppShellProps = {
   children: ReactNode;
   previewContent?: ReactNode;
+  inspector?: ReactNode;
+  previewInspector?: ReactNode;
   previewItems?: readonly ItemView[];
+  todayDate: string;
+  onCloseInspector?: () => void;
 };
 
-export function AppShell({ children, previewContent, previewItems = [] }: AppShellProps) {
+export function AppShell({ children, previewContent, inspector, previewInspector, previewItems = [], todayDate, onCloseInspector }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { config, session } = useAuth();
   const repository = useRepositoryStatus();
   const itemRepository = useRepository();
@@ -37,14 +45,47 @@ export function AppShell({ children, previewContent, previewItems = [] }: AppShe
   const useLocalWorkspace = designPreview || localOnlyMode;
   const localPreview = useLocalPreviewState(previewItems);
   const desktopPreferences = useDesktopPreferences();
+  const [searchOpen, setSearchOpen] = useState(false);
   const conflicts = designPreview ? [] : items.filter((item) => item.syncState === 'conflict');
   const activeConflict = conflicts.find((item) => !dismissedConflicts.has(item.display.id)) ?? null;
-  const hideBrand = pathname === '/settings' || pathname.startsWith('/settings/') || pathname === '/calendar' || pathname.startsWith('/calendar/');
-  const routeType = pathname.startsWith('/calendar') ? 'calendar' : pathname.startsWith('/settings') ? 'settings' : pathname.startsWith('/tasks') ? 'tasks' : 'home';
+  const routeType = pathname.startsWith('/calendar') ? 'calendar' : pathname.startsWith('/settings') ? 'settings' : pathname.startsWith('/progress') ? 'progress' : pathname.startsWith('/tasks') ? 'tasks' : 'home';
+  const appItems = useLocalWorkspace ? localPreview.items : items;
+  const inspectorContent = useLocalWorkspace ? previewInspector : inspector;
 
   useLayoutEffect(() => {
     document.documentElement.dataset.colorTheme = desktopPreferences.colorTheme;
   }, [desktopPreferences.colorTheme]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const key = event.key.toLocaleLowerCase();
+      if (key === 'k') {
+        event.preventDefault();
+        setSearchOpen(true);
+      } else if (key === 'n') {
+        event.preventDefault();
+        router.push(`/${designPreview ? '?preview=design&' : '?'}compose=task`);
+      } else if (key === ',') {
+        event.preventDefault();
+        router.push(designPreview ? '/settings?preview=design' : '/settings');
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [designPreview, router]);
+
+  useEffect(() => {
+    const closeInspector = onCloseInspector;
+    if (routeType !== 'settings' || !inspectorContent || !closeInspector) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeInspector?.();
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [inspectorContent, onCloseInspector, routeType]);
 
   if (!designPreview && config === null) return <LoadingScreen />;
   if (!designPreview && config?.status === 'invalid') {
@@ -99,21 +140,34 @@ export function AppShell({ children, previewContent, previewItems = [] }: AppShe
 
   return (
     <div className={styles.frame} data-app-state={designPreview ? 'design-preview' : localOnlyMode ? 'local-only' : 'signed-in'} data-color-theme={desktopPreferences.colorTheme}>
-      {useLocalWorkspace && (
-        <div className={styles.previewBanner} role="status">
-          로컬 모드 · 변경 내용은 이 브라우저에 저장되며 기기 간 동기화되지 않음
+      <div className={styles.window}>
+        <header className={styles.titleBar}>
+          <div className={styles.titleBarLeading}>
+            <div aria-label="창 제어" className={styles.trafficLights}><i /><i /><i /></div>
+            <button aria-label="뒤로" className={styles.toolButton} onClick={() => router.back()} type="button"><Icon name="chevron-left" size={16} /></button>
+          </div>
+          <div className={styles.title}><TodoLogo variant="title" /></div>
+          <div className={styles.titleActions}>
+            {useLocalWorkspace && <span className={styles.localState} title="변경 사항은 이 브라우저에 저장됩니다">로컬 미리보기</span>}
+            <button aria-label="오늘" className={styles.toolButton} onClick={() => router.push(designPreview ? '/?preview=design' : '/')} type="button"><Icon name="home" size={15} /></button>
+            <button aria-label="새 할 일" className={styles.toolButton} onClick={() => router.push(`/${designPreview ? '?preview=design&' : '?'}compose=task`)} type="button"><Icon name="plus" size={16} /></button>
+            <button aria-label="검색" className={styles.searchButton} onClick={() => setSearchOpen(true)} type="button"><Icon name="search" size={15} /><kbd>⌘K</kbd></button>
+          </div>
+        </header>
+        <div className={styles.appBody} inert={routeType === 'settings' && Boolean(inspectorContent)}>
+          <Suspense fallback={<aside className={styles.sidebarFallback} />}>
+            <DesktopSidebar items={appItems} pathname={pathname} preview={designPreview} timeZone={desktopPreferences.timeZone} todayDate={todayDate} />
+          </Suspense>
+          <div className={styles.route} data-route={routeType} key={pathname}>{content}</div>
+        </div>
+      </div>
+      {routeType === 'settings' && inspectorContent && (
+        <div className={styles.inspectorBackdrop} onMouseDown={(event) => { if (event.target === event.currentTarget) onCloseInspector?.(); }}>
+          <section aria-label="설정" aria-modal="true" className={styles.settingsInspector} onMouseDown={(event) => event.stopPropagation()} role="dialog">
+            {inspectorContent}
+          </section>
         </div>
       )}
-      <div className={styles.route} data-route={routeType} key={pathname}>
-        {!hideBrand && (
-          <div className={styles.brandBar}>
-            <Link aria-label="Todo 홈" className={styles.brand} href={designPreview ? '/?preview=design' : '/'}>
-              <TodoLogo />
-            </Link>
-          </div>
-        )}
-        {content}
-      </div>
       {conflicts.length > 0 && !activeConflict && (
         <button className={styles.conflictNotice} onClick={reopenConflict} type="button">
           충돌 {conflicts.length}건 확인
@@ -130,6 +184,13 @@ export function AppShell({ children, previewContent, previewItems = [] }: AppShe
           onUseLocal={() => resolveConflict('use-local')}
         />
       )}
+      {searchOpen && <GlobalSearch items={appItems} onClose={() => setSearchOpen(false)} onOpen={(item) => {
+        setSearchOpen(false);
+        const params = new URLSearchParams();
+        params.set('open', item.display.id);
+        if (designPreview) params.set('preview', 'design');
+        router.push(`/?${params.toString()}`);
+      }} />}
       {useLocalWorkspace && <LocalReminderScheduler enabled={localPreview.remindersEnabled} items={localPreview.items} offsets={localPreview.reminderOffsets} />}
     </div>
   );

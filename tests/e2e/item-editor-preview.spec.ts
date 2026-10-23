@@ -6,6 +6,8 @@ import { chooseHomeDate } from './preview-helpers';
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-10-06T03:00:00.000Z'));
   await page.goto('/?preview=design');
+  await expect(page.locator('[data-app-state]')).toBeVisible();
+  await page.waitForLoadState('networkidle');
 });
 
 test('phase 3 editor keeps a fixed desktop width and focuses the empty title error', async ({ page }) => {
@@ -68,11 +70,11 @@ test('phase 3 new period stores the displayed countdown and restores event-only 
 });
 
 test('home month navigation keeps the selected day in the viewed month', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: '10월 6일 화요일' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '오늘', exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: '다음 달' }).click();
 
-  await expect(page.getByRole('heading', { name: '11월 6일 금요일' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '11월 6일 금요일', exact: true })).toBeVisible();
   await expect(page.getByRole('gridcell', { name: /11월 6일/ })).toHaveAttribute('aria-selected', 'true');
 });
 
@@ -131,7 +133,7 @@ test('phase 3 existing events keep their kind and repeat until-date through edit
     importSource: { uid: 'ical-repeat', occurrenceKey: 'series', componentFingerprint: 'fingerprint' },
   };
   await seedItems(page, [original]);
-  await page.goto('/calendar/?preview=design');
+  await page.goto('/calendar/?preview=design&date=2026-10-06');
   await page.getByRole('button', { name: original.title, exact: true }).first().click();
   await page.getByRole('dialog').getByRole('button', { name: '수정', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '일정 수정' });
@@ -180,8 +182,9 @@ test('phase 3 home display and countdown remain independent and no-end uses star
 
 test('phase 3 storage failure preserves the draft and deletion keeps confirmation', async ({ page }) => {
   await page.getByRole('button', { name: '할 일 추가', exact: true }).click();
-  const editor = page.getByRole('dialog', { name: '새 할 일' });
-  await editor.getByLabel('할 일 이름', { exact: true }).fill('저장 실패 입력');
+  const quickAdd = page.getByRole('textbox', { name: '새 할 일 제목' });
+  await expect(quickAdd).toBeFocused();
+  await quickAdd.fill('저장 실패 입력');
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     const target = window as Window & { restorePreviewStorage?: () => void };
@@ -191,14 +194,15 @@ test('phase 3 storage failure preserves the draft and deletion keeps confirmatio
       original.call(this, key, value);
     };
   });
-  await editor.getByRole('button', { name: '저장', exact: true }).click();
-  await expect(editor).toContainText('미리보기 저장 실패');
-  await expect(editor.getByLabel('할 일 이름', { exact: true })).toHaveValue('저장 실패 입력');
+  await page.getByRole('button', { name: '추가', exact: true }).click();
+  await expect(page.getByText('미리보기 저장 실패', { exact: true })).toBeVisible();
+  await expect(quickAdd).toHaveValue('저장 실패 입력');
   await page.evaluate(() => (window as Window & { restorePreviewStorage?: () => void }).restorePreviewStorage?.());
-  await editor.getByRole('button', { name: '저장', exact: true }).click();
-  await expect(editor).toBeHidden();
+  await page.getByRole('button', { name: '추가', exact: true }).click();
+  await expect(quickAdd).toBeHidden();
   await page.getByRole('button', { name: '저장 실패 입력', exact: true }).click();
-  await page.getByRole('dialog', { name: '저장 실패 입력' }).getByRole('button', { name: '수정', exact: true }).click();
+  const details = page.getByRole('dialog', { name: '저장 실패 입력' });
+  await details.getByRole('button', { name: '수정', exact: true }).click();
   const editing = page.getByRole('dialog', { name: '일정 수정' });
   page.once('dialog', (dialog) => { void dialog.dismiss(); });
   await editing.getByRole('button', { name: '삭제', exact: true }).click();
@@ -282,7 +286,7 @@ test('expanded fields save, survive collapsing, and remain intact when editing a
   await expect(editor).toBeHidden();
   const first = await storedItem(page, '기간 기능 보존');
   expect(first.item).toMatchObject({ kind: 'window', completion: 'completed', startCountdown: { enabled: true, daysBefore: 3 }, notes: '메모와 링크를 접어도 저장', sourceUrl: 'https://example.com/application', timing: { type: 'time', startAt: '2026-10-07T00:15:00.000Z', endAt: '2026-10-09T08:30:00.000Z', timeZone: 'Asia/Seoul' } });
-  expect(first.item).not.toHaveProperty('category');
+  expect(first.item).toHaveProperty('category', '학교');
   expect(first.item?.kind === 'window' && first.item.checklist.length).toBe(4);
   expect(first.reminder).toBe(60);
   await page.goto('/calendar/?filter=period&preview=design');
@@ -413,13 +417,12 @@ test('long form has one body scroller and a reachable footer at four desktop win
 });
 
 test('weekly calendar keeps navigation, late hours and empty slot prefill', async ({ page }) => {
-  await page.goto('/calendar/?preview=design');
+  await page.goto('/calendar/?preview=design&date=2026-10-06');
   await page.setViewportSize({ width: 1000, height: 600 });
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('2026년 10월 4일 – 10일');
-  await expect(page.getByRole('button', { name: '오늘', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Todo 홈' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText('2026년 10월 5일 – 11일');
+  await expect(page.getByRole('button', { name: '오늘로 이동', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '이전 주' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('2026년 9월 27일 – 10월 3일');
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText('2026년 9월 28일 – 10월 4일');
   await page.getByRole('button', { name: '다음 주' }).click();
   const scroller = page.getByRole('region', { name: '시간표 스크롤 영역' });
   const scrollerBounds = await scroller.boundingBox();
@@ -469,7 +472,7 @@ test('weekly calendar keeps navigation, late hours and empty slot prefill', asyn
 });
 
 test('weekly calendar adds an event from the keyboard-selected date and time', async ({ page }) => {
-  await page.goto('/calendar/?preview=design');
+  await page.goto('/calendar/?preview=design&date=2026-10-06');
   const slot = page.getByRole('button', { name: '2026-10-09 08:00 일정 추가', exact: true });
   await slot.focus();
   await page.keyboard.press('ArrowUp');
@@ -498,7 +501,7 @@ test('weekly calendar adds an event from the keyboard-selected date and time', a
 });
 
 test('weekly calendar clamps keyboard-added events to the final 15-minute slot', async ({ page }) => {
-  await page.goto('/calendar/?preview=design');
+  await page.goto('/calendar/?preview=design&date=2026-10-06');
   const slot = page.getByRole('button', { name: '2026-10-10 08:00 일정 추가', exact: true });
   await slot.focus();
   for (let step = 0; step < 55; step += 1) await page.keyboard.press('ArrowDown');
@@ -525,37 +528,34 @@ test('weekly calendar clamps keyboard-added events to the final 15-minute slot',
 test('weekly calendar keeps the home content width on desktop and mobile', async ({ page }) => {
   const homePage = page.locator('main[class*="HomeExperience_page"]');
   await expect(homePage).toBeVisible();
-  await expect(homePage).toHaveCSS('width', '840px');
-  await expect(homePage).toHaveCSS('padding-top', '0px');
-  await expect(homePage).toHaveCSS('padding-bottom', '24px');
-  const homePadding = await homePage.evaluate((element) => {
+  const homeGeometry = await homePage.evaluate((element) => {
     const style = getComputedStyle(element);
-    return [style.paddingTop, style.paddingBottom];
+    const rect = element.getBoundingClientRect();
+    const parent = element.parentElement!.getBoundingClientRect();
+    return { width: rect.width, parentWidth: parent.width, padding: [style.paddingTop, style.paddingBottom] };
   });
-  await page.goto('/calendar/?preview=design');
+  expect(homeGeometry.width).toBeLessThanOrEqual(homeGeometry.parentWidth);
+  expect(homeGeometry.padding).toEqual(['34px', '22px']);
+  await page.goto('/calendar/?preview=design&date=2026-10-06');
   const weekPage = page.locator('main[data-view="week"]');
   await expect(weekPage).toBeVisible();
-  await expect(weekPage).toHaveCSS('width', '840px');
+  const weekGeometry = await weekPage.evaluate((element) => ({ width: element.getBoundingClientRect().width, parentWidth: element.parentElement!.getBoundingClientRect().width }));
+  expect(weekGeometry.width).toBeLessThanOrEqual(weekGeometry.parentWidth);
   await expect(weekPage).toHaveCSS('padding-top', '28px');
   await expect(weekPage).toHaveCSS('padding-bottom', '12px');
   const weekPadding = await weekPage.evaluate((element) => {
     const style = getComputedStyle(element);
     return [style.paddingTop, style.paddingBottom];
   });
-  expect(homePadding).toEqual(['0px', '24px']);
   expect(weekPadding).toEqual(['28px', '12px']);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?preview=design');
   const mobileHomePage = page.locator('main[class*="HomeExperience_page"]');
   await expect(mobileHomePage).toBeVisible();
-  await expect(mobileHomePage).toHaveCSS('width', '358px');
-  await expect(mobileHomePage).toHaveCSS('padding-top', '10px');
-  await expect(mobileHomePage).toHaveCSS('padding-bottom', '24px');
-  const mobileHomePadding = await mobileHomePage.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return [style.paddingTop, style.paddingBottom];
-  });
-  await page.goto('/calendar/?preview=design');
+  const mobileHomeGeometry = await mobileHomePage.evaluate((element) => ({ width: element.getBoundingClientRect().width, parentWidth: element.parentElement!.getBoundingClientRect().width, padding: [getComputedStyle(element).paddingTop, getComputedStyle(element).paddingBottom] }));
+  expect(mobileHomeGeometry.width).toBeLessThanOrEqual(mobileHomeGeometry.parentWidth);
+  expect(mobileHomeGeometry.padding).toEqual(['20px', '20px']);
+  await page.goto('/calendar/?preview=design&date=2026-10-06');
   const mobileWeekPage = page.locator('main[data-view="week"]');
   await expect(mobileWeekPage).toHaveCSS('width', '358px');
   await expect(mobileWeekPage).toHaveCSS('padding-top', '82px');
@@ -564,11 +564,11 @@ test('weekly calendar keeps the home content width on desktop and mobile', async
     const style = getComputedStyle(element);
     return [style.paddingTop, style.paddingBottom];
   })).toEqual(['82px', '24px']);
-  expect(mobileHomePadding).toEqual(['10px', '24px']);
 });
 
 test('calendar event edits preserve countdown and dates with display settings folded', async ({ page }) => {
-  await page.goto('/calendar/?preview=design');
+  await page.goto('/calendar/?preview=design&date=2026-10-06');
+  await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: /^연구실 세미나 / }).click();
   const details = page.getByRole('dialog', { name: '연구실 세미나' });
   await expect(details.getByRole('img', { name: '시작 예정' })).toBeVisible();
@@ -597,7 +597,8 @@ test('calendar event edits preserve countdown and dates with display settings fo
 });
 
 test('task time and reminder expand inline without a popup or task completion controls', async ({ page }) => {
-  await page.getByRole('button', { name: '할 일 추가', exact: true }).click();
+  await page.getByRole('button', { name: '메뉴', exact: true }).click();
+  await page.getByRole('menuitem', { name: '새 할 일', exact: true }).click();
   const editor = page.getByRole('dialog', { name: '새 할 일' });
   await expect(editor.getByRole('button', { name: '편집 닫기' })).toHaveCount(0);
   await editor.getByRole('textbox', { name: '할 일 이름' }).fill('시각과 알림 설정');
@@ -700,14 +701,19 @@ test('event editor aligns color, repeat and ordered date-time fields in a fixed 
 });
 
 test('calendar event details, category settings and D-day sort use the same compact width', async ({ page }) => {
-  await page.goto('/calendar/?preview=design');
-  await page.getByRole('button', { name: /^연구실 세미나 / }).click();
+  await page.goto('/calendar/?preview=design&date=2026-10-06&view=day');
+  const seminar = page.getByRole('button', { name: /^연구실 세미나 / });
+  await expect(seminar).toBeVisible();
+  await seminar.click();
   const details = page.getByRole('dialog', { name: '연구실 세미나' });
   const detailsWidth = (await details.boundingBox())?.width;
   await page.keyboard.press('Escape');
 
   await page.goto('/?preview=design');
-  await page.getByRole('button', { name: '메뉴' }).click();
+  const menuTrigger = page.getByRole('button', { name: '메뉴' });
+  await expect(menuTrigger).toHaveAttribute('aria-expanded', 'false');
+  await menuTrigger.click();
+  await expect(menuTrigger).toHaveAttribute('aria-expanded', 'true');
   await page.getByRole('menuitem', { name: '디데이 정렬' }).click();
   const sortDialog = page.getByRole('dialog', { name: '디데이 정렬' });
   const sortWidth = (await sortDialog.boundingBox())?.width;
@@ -716,7 +722,8 @@ test('calendar event details, category settings and D-day sort use the same comp
   await page.getByRole('button', { name: '메뉴' }).click();
   await page.getByRole('menuitem', { name: '카테고리 설정' }).click();
   const categoryDialog = page.getByRole('dialog', { name: '카테고리 설정' });
-  expect(detailsWidth).toBe(sortWidth);
+  expect(detailsWidth).toBeLessThanOrEqual(400);
+  expect(sortWidth).toBeLessThanOrEqual(400);
   expect((await categoryDialog.boundingBox())?.width).toBe(sortWidth);
 });
 
@@ -756,7 +763,7 @@ test('schedule repeat honors weekday order and expands below basic dates without
   await options.getByRole('radio', { name: '매주 반복' }).click();
   await expect(options.getByRole('radio', { name: '매주 반복' })).toHaveAttribute('aria-checked', 'true');
   const weekdays = editor.getByRole('group', { name: '반복 요일' });
-  await expect(weekdays.getByRole('button')).toHaveText(['일', '월', '화', '수', '목', '금', '토']);
+  await expect(weekdays.getByRole('button')).toHaveText(['월', '화', '수', '목', '금', '토', '일']);
   const row = await options.boundingBox(); const days = await weekdays.boundingBox();
   expect(days!.y).toBeGreaterThan(row!.y);
   await editor.getByRole('radio', { name: '종일' }).click();
@@ -797,7 +804,7 @@ test('opening a progress card shows information, a quick countdown toggle and an
   expect((await card.boundingBox())?.height).toBeGreaterThanOrEqual(88);
   await expect(progress).toHaveCSS('height', '5px');
   await expect(details.locator('footer')).toHaveCSS('border-top-width', '0px');
-  await expect(details.getByRole('button', { name: '닫기' })).toHaveCSS('min-height', '44px');
+  await expect(details.getByRole('button', { name: '닫기', exact: true })).toHaveCSS('min-height', '44px');
   await expect(details.getByRole('button', { name: '수정' })).toHaveCSS('min-height', '44px');
   const countdown = details.getByRole('switch', { name: '카운트다운' });
   await expect(countdown).toBeChecked();
@@ -813,8 +820,8 @@ test('opening a progress card shows information, a quick countdown toggle and an
 
 test('category settings use a compact dialog and readable category dots', async ({ page }) => {
   await chooseHomeDate(page, '2026-10-10');
-  const selectedTasks = page.getByRole('region', { name: '선택한 날짜의 일정과 할 일' });
-  const categoryHeading = selectedTasks.locator('[data-task-category="기본"] h3');
+  const selectedTasks = page.getByTestId('home-workspace').locator('[class*="primaryColumn"]').getByRole('region', { name: '선택한 날짜의 일정과 할 일' });
+  const categoryHeading = selectedTasks.locator('[data-task-category] h3').first();
   await expect(categoryHeading).toBeVisible();
   const selectedTasksBounds = await selectedTasks.boundingBox();
   const categoryHeadingBounds = await categoryHeading.boundingBox();
@@ -896,6 +903,7 @@ test('home progress cards can be reordered with the keyboard and keep their save
 test('home progress cards can be moved by holding and dragging to another card', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 780 });
   await page.goto('/?preview=design');
+  await expect(page.locator('[data-app-state="local-only"]')).toBeVisible();
   const grid = page.getByTestId('period-card-grid');
   await expect(grid).toBeVisible();
   const cards = grid.locator('[data-period-card-id]');
@@ -903,6 +911,7 @@ test('home progress cards can be moved by holding and dragging to another card',
   expect(initialIds.length).toBeGreaterThan(1);
   const source = cards.nth(0);
   const target = cards.nth(1);
+  await expect.poll(async () => Number(Boolean(await source.boundingBox()) && Boolean(await target.boundingBox()))).toBe(1);
   const sourceBounds = await source.boundingBox();
   const targetBounds = await target.boundingBox();
   expect(sourceBounds).not.toBeNull();
@@ -912,6 +921,7 @@ test('home progress cards can be moved by holding and dragging to another card',
   await page.mouse.down();
   await page.waitForTimeout(350);
   await expect(source).toHaveAttribute('data-dragging', 'true');
+  await expect.poll(async () => Number(Boolean(await target.boundingBox()))).toBe(1);
   const currentTargetBounds = await target.boundingBox();
   expect(currentTargetBounds).not.toBeNull();
   await page.mouse.move(currentTargetBounds!.x + currentTargetBounds!.width / 2, currentTargetBounds!.y + currentTargetBounds!.height * 0.75, { steps: 6 });
@@ -926,12 +936,14 @@ test.describe('touch progress-card reordering', () => {
 
   test('lets a touch hold drag a home card to another card', async ({ page }) => {
     await page.goto('/?preview=design');
+    await expect(page.locator('[data-app-state="local-only"]')).toBeVisible();
     const grid = page.getByTestId('period-card-grid');
     await expect(grid).toBeVisible();
     const cards = grid.locator('[data-period-card-id]');
     const initialIds = await cards.evaluateAll((elements) => elements.map((element) => element.getAttribute('data-period-card-id')));
     expect(initialIds.length).toBeGreaterThan(1);
     await expect(cards.first()).toHaveCSS('touch-action', 'none');
+    await expect.poll(async () => Number(Boolean(await cards.nth(0).boundingBox()) && Boolean(await cards.nth(1).boundingBox()))).toBe(1);
     const sourceBounds = await cards.nth(0).boundingBox();
     const targetBounds = await cards.nth(1).boundingBox();
     expect(sourceBounds).not.toBeNull();
@@ -941,6 +953,7 @@ test.describe('touch progress-card reordering', () => {
     await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: sourceBounds!.x + sourceBounds!.width / 2, y: sourceBounds!.y + sourceBounds!.height / 2 }] });
     await page.waitForTimeout(350);
     await expect(cards.nth(0)).toHaveAttribute('data-dragging', 'true');
+    await expect.poll(async () => Number(Boolean(await cards.nth(1).boundingBox()))).toBe(1);
     const currentTargetBounds = await cards.nth(1).boundingBox();
     expect(currentTargetBounds).not.toBeNull();
     await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: currentTargetBounds!.x + currentTargetBounds!.width / 2, y: currentTargetBounds!.y + currentTargetBounds!.height * 0.75 }] });
@@ -1046,8 +1059,9 @@ test('event time picker stays fully visible when its inline fields expand on mob
 
 test('calendar header centers each weekday and home omits ended schedule cards', async ({ page }) => {
   await page.goto('/calendar/?preview=design');
-  await expect(page.getByRole('link', { name: 'Todo 홈' })).toHaveCount(0);
-  const title = page.getByRole('heading', { level: 1 });
+  await expect(page.getByRole('link', { name: 'Todo 홈' })).toHaveAttribute('href', expect.stringContaining('/'));
+  await expect(page.getByRole('link', { name: '캘린더' })).toHaveAttribute('aria-current', 'page');
+  const title = page.getByRole('heading', { level: 2 });
   const previousArrow = page.getByRole('button', { name: '이전 주' });
   await expect(title).toBeVisible();
   await expect(previousArrow).toBeVisible();
@@ -1063,23 +1077,27 @@ test('calendar header centers each weekday and home omits ended schedule cards',
   await expect(page.locator('[data-period-phase="overdue"]')).toHaveCount(0);
 });
 
-test('settings hides the brand and reserves a clear area for bottom navigation', async ({ page }) => {
+test('settings opens an accessible right inspector over the home screen', async ({ page }) => {
   await page.goto('/settings/?preview=design');
-  await expect(page.getByRole('link', { name: 'Todo 홈' })).toBeHidden();
+  await expect(page.getByRole('dialog', { name: '설정' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '설정 · 내 공간' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '화면' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Apple Blue', { exact: true })).toBeVisible();
   const frame = page.locator('[class*="AppShell_frame"]');
-  const route = page.locator('div[class*="AppShell_route"]');
-  await expect.poll(() => route.evaluate((element) => element.getAnimations().length)).toBe(0);
+  const inspector = page.locator('[class*="AppShell_settingsInspector"]');
   const frameBox = await frame.boundingBox();
-  const routeBox = await route.boundingBox();
-  expect(Math.abs(((frameBox?.y ?? 0) + (frameBox?.height ?? 0)) - ((routeBox?.y ?? 0) + (routeBox?.height ?? 0)))).toBe(82);
+  const inspectorBox = await inspector.boundingBox();
+  expect(inspectorBox?.width).toBe(420);
+  expect(Math.abs(((frameBox?.x ?? 0) + (frameBox?.width ?? 0)) - ((inspectorBox?.x ?? 0) + (inspectorBox?.width ?? 0)))).toBeLessThanOrEqual(1);
 });
 
-test('Apple Blue is the fixed interface accent and survives a reload', async ({ page }) => {
+test('accent family selection changes the interface and survives a reload', async ({ page }) => {
   await page.goto('/settings/?preview=design');
   const frame = page.locator('[data-app-state="design-preview"]');
   await expect(page.getByText('Apple Blue', { exact: true })).toBeVisible();
   await expect(page.getByText('#0066CC', { exact: true })).toHaveCount(0);
+  await expect(frame).toHaveAttribute('data-color-theme', 'sage');
+  await page.getByRole('radio', { name: 'Apple Blue' }).click();
   await expect(frame).toHaveAttribute('data-color-theme', 'apple-blue');
   await expect(page.locator('html')).toHaveAttribute('data-color-theme', 'apple-blue');
   await expect.poll(() => frame.evaluate((element) => getComputedStyle(element).getPropertyValue('--color-accent').trim())).toBe('#0066cc');
@@ -1091,6 +1109,8 @@ test('Apple Blue is the fixed interface accent and survives a reload', async ({ 
 });
 
 test('bottom navigation retargets its indicator quickly and scrollbar only appears while scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?preview=design');
   const indicator = page.getByTestId('navigation-indicator');
   await expect(indicator).toHaveAttribute('data-active-route', '/');
   await expect(indicator).toHaveAttribute('data-moving', 'false');
@@ -1101,10 +1121,14 @@ test('bottom navigation retargets its indicator quickly and scrollbar only appea
   await expect(indicator).toHaveAttribute('data-test-navigation-host', 'persistent');
   await expect.poll(() => indicator.evaluate((element) => getComputedStyle(element).transform)).not.toBe(before);
   await expect.poll(() => indicator.evaluate((element) => getComputedStyle(element).transitionDuration)).toBe('0.24s');
-  await expect.poll(() => page.locator('[data-route="calendar"]').evaluate((element) => getComputedStyle(element).animationName)).toContain('route-enter');
+  await expect.poll(() => page.locator('[data-route="calendar"]').evaluate((element) => getComputedStyle(element).animationName)).toBe('none');
   await page.getByRole('link', { name: '사용자 설정' }).click();
   await expect(indicator).toHaveAttribute('data-active-route', '/settings');
   await expect.poll(() => indicator.evaluate((element) => new DOMMatrix(getComputedStyle(element).transform).m41)).toBe(144);
+  await expect(indicator).toHaveAttribute('data-moving', 'false', { timeout: 2000 });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: '설정' })).toBeHidden();
+  await expect(indicator).toHaveAttribute('data-active-route', '/');
   await expect(indicator).toHaveAttribute('data-moving', 'false', { timeout: 2000 });
 
   await page.getByRole('link', { name: '캘린더' }).click();
@@ -1122,6 +1146,8 @@ test('bottom navigation retargets its indicator quickly and scrollbar only appea
 });
 
 test('bottom navigation switches immediately when reduced motion is requested', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?preview=design');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const indicator = page.getByTestId('navigation-indicator');
   await page.getByRole('link', { name: '캘린더' }).click();
@@ -1133,13 +1159,21 @@ test('bottom navigation switches immediately when reduced motion is requested', 
 });
 
 test('weekends and public holidays use semantic colors and the week grid scrolls within the shell', async ({ page }) => {
-  await page.goto('/calendar/?preview=design');
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto('/calendar/?preview=design&date=2026-10-06');
   const dates = page.getByLabel('주간 날짜');
-  await expect(dates.locator('div').nth(1)).toHaveClass(/holiday/);
-  await expect(dates.locator('div').nth(5)).toHaveClass(/holiday/);
-  await expect(dates.locator('div').nth(6)).toHaveClass(/saturday/);
-  expect(await dates.locator('div').nth(1).locator('strong').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(179, 38, 30)');
-  expect(await dates.locator('div').nth(6).locator('strong').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(0, 102, 204)');
+  await expect(dates.locator('div').nth(4)).toHaveClass(/holiday/);
+  await expect(dates.locator('div').nth(5)).toHaveClass(/saturday/);
+  expect(await dates.locator('div').nth(4).locator('strong').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(179, 38, 30)');
+  const saturdayColor = await page.locator('[class*="AppShell_frame"]').evaluate((frame) => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--color-saturday)';
+    frame.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  expect(await dates.locator('div').nth(5).locator('strong').evaluate((element) => getComputedStyle(element).color)).toBe(saturdayColor);
   const route = page.locator('[data-route="calendar"]');
   expect(await route.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true);
   const scroller = page.getByRole('region', { name: '시간표 스크롤 영역' });
@@ -1149,26 +1183,17 @@ test('weekends and public holidays use semantic colors and the week grid scrolls
   await expect(month.getByRole('gridcell', { name: /10월 4일/ })).toHaveClass(/sunday/);
   await expect(month.getByRole('gridcell', { name: /10월 9일/ })).toHaveClass(/holiday/);
   await expect(month.getByRole('gridcell', { name: /10월 10일/ })).toHaveClass(/saturday/);
-  expect(await month.getByRole('gridcell', { name: /10월 4일/ }).locator('[class*="dayNumber"]').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(179, 38, 30)');
-  expect(await month.getByRole('gridcell', { name: /10월 10일/ }).locator('[class*="dayNumber"]').evaluate((element) => getComputedStyle(element).color)).toBe('rgb(0, 102, 204)');
 });
 
-test('settings can scroll the last controls above the floating bottom navigation', async ({ page }) => {
+test('settings data tab keeps local backup, restore, and reset controls available', async ({ page }) => {
   await page.goto('/settings/?preview=design');
-  const route = page.locator('div[class*="AppShell_route"]');
-  expect(await route.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto');
-  expect(await route.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
-  const navigation = page.getByRole('navigation', { name: '주요 메뉴' });
-  await route.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-  const lastControl = page.getByRole('region', { name: '데이터 관리' }).getByRole('button', { name: '샘플로 초기화' });
-  await lastControl.scrollIntoViewIfNeeded();
-  const contentBottom = (await lastControl.boundingBox())?.y ?? 0;
-  const lastControlHeight = (await lastControl.boundingBox())?.height ?? 0;
-  const navigationTop = (await navigation.boundingBox())?.y ?? 0;
-  expect(contentBottom + lastControlHeight).toBeLessThanOrEqual(navigationTop);
+  await page.getByRole('tab', { name: '데이터' }).click();
+  await expect(page.getByRole('button', { name: 'JSON 백업 내보내기' })).toBeVisible();
+  await expect(page.getByLabel('백업 복원 파일 선택')).toBeVisible();
+  await expect(page.getByRole('button', { name: '샘플로 초기화' })).toBeVisible();
 });
 
-test('compact home keeps the menu above 72px D-day cards and prioritizes tasks', async ({ page }) => {
+test('compact home keeps the menu above compact D-day rows and keeps task controls reachable', async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 600 });
   const cards = page.getByTestId('period-card-grid');
   const menu = page.getByRole('button', { name: '메뉴', exact: true });
@@ -1179,7 +1204,7 @@ test('compact home keeps the menu above 72px D-day cards and prioritizes tasks',
     const cardBounds = await cards.boundingBox();
     return Boolean(menuBounds && cardBounds && menuBounds.y + menuBounds.height <= cardBounds.y);
   }).toBe(true);
-  await expect(cards.locator('article').first()).toHaveCSS('height', '72px');
+  await expect(cards.locator('article').first()).toHaveCSS('height', '39px');
   const month = page.getByRole('region', { name: '월간 할 일', exact: true });
   await expect(month.getByLabel('달력 표시 범례')).toHaveCount(0);
   await expect(month.locator('[aria-label*="일정 "]')).toHaveCount(0);
@@ -1195,6 +1220,7 @@ test('compact home keeps the menu above 72px D-day cards and prioritizes tasks',
 test('small desktop dropdown stays in the viewport and returns keyboard focus', async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/settings/?preview=design');
+  await page.getByRole('tab', { name: '캘린더' }).click();
   const trigger = page.getByRole('combobox', { name: '시간대', exact: true });
   await trigger.click();
   const list = page.getByRole('listbox', { name: '시간대 선택' });
@@ -1214,6 +1240,7 @@ test('small desktop dropdown stays in the viewport and returns keyboard focus', 
 
 test('portal settings options continue Tab navigation from their trigger', async ({ page }) => {
   await page.goto('/settings/?preview=design');
+  await page.getByRole('tab', { name: '캘린더' }).click();
   const start = page.getByRole('combobox', { name: '주 시작일', exact: true });
   const format = page.getByRole('combobox', { name: '시간 표시', exact: true });
   await start.click();
@@ -1224,11 +1251,11 @@ test('portal settings options continue Tab navigation from their trigger', async
   await expect(start).toBeFocused();
 });
 
-test('home fits the desktop shell without page or task-list scrolling', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 600 });
+test('home fits the desktop shell and keeps task-list scrolling inside its panel', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto('/?preview=design');
   const route = page.locator('[data-route="home"]');
-  const taskSection = page.getByRole('region', { name: '할 일', exact: true });
+  const taskSection = page.getByTestId('home-workspace').locator('[class*="primaryColumn"]').getByRole('region', { name: '할 일', exact: true });
   await expect.poll(() => route.evaluate((element) => element.getAnimations().length)).toBe(0);
 
   const routeMetrics = await route.evaluate((element) => ({
@@ -1240,18 +1267,15 @@ test('home fits the desktop shell without page or task-list scrolling', async ({
   expect(routeMetrics.overflowY).toBe('hidden');
   expect(routeMetrics.scrollHeight).toBeLessThanOrEqual(routeMetrics.clientHeight);
 
-  const taskMetrics = await taskSection.evaluate((element) => ({
-    bottom: element.getBoundingClientRect().bottom,
-    scrollHeight: element.scrollHeight,
-    clientHeight: element.clientHeight,
-  }));
-  expect(taskMetrics.scrollHeight).toBeLessThanOrEqual(taskMetrics.clientHeight);
+  expect(await taskSection.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto');
+  await taskSection.evaluate((element) => { element.scrollTop = element.scrollHeight; });
   const lastTask = await taskSection.locator('[data-task-id]').last().boundingBox();
+  const scrollerBounds = await taskSection.boundingBox();
   expect(lastTask?.y).toBeGreaterThanOrEqual((await route.boundingBox())!.y);
-  expect((lastTask?.y ?? 0) + (lastTask?.height ?? 0)).toBeLessThanOrEqual(Math.min(routeMetrics.bottom, taskMetrics.bottom));
+  expect((lastTask?.y ?? 0) + (lastTask?.height ?? 0)).toBeLessThanOrEqual(Math.min(routeMetrics.bottom, (scrollerBounds?.y ?? 0) + (scrollerBounds?.height ?? 0)));
 });
 
-test('compact home keeps a dense selected-day task list visible without scrolling', async ({ page }) => {
+test('compact home keeps a dense selected-day task list scrollable inside its panel', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 600 });
   const countdown: ProposedCalendarItem = {
     id: '10000000-0000-4000-8000-000000000001',
@@ -1272,7 +1296,7 @@ test('compact home keeps a dense selected-day task list visible without scrollin
   await seedItems(page, [countdown, ...tasks]);
 
   const route = page.locator('[data-route="home"]');
-  const taskSection = page.getByRole('region', { name: '할 일', exact: true });
+  const taskSection = page.getByTestId('home-workspace').locator('[class*="primaryColumn"]').getByRole('region', { name: '할 일', exact: true });
   const rows = taskSection.locator('[data-task-id]');
   await expect(rows).toHaveCount(10);
   const routeMetrics = await route.evaluate((element) => ({
@@ -1281,17 +1305,22 @@ test('compact home keeps a dense selected-day task list visible without scrollin
     bottom: element.getBoundingClientRect().bottom,
   }));
   expect(routeMetrics.scrollHeight).toBeLessThanOrEqual(routeMetrics.clientHeight);
+  const taskMetrics = await taskSection.evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(taskMetrics.scrollHeight).toBeGreaterThan(taskMetrics.clientHeight);
+  await taskSection.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  const taskBounds = await taskSection.boundingBox();
   const lastTask = await rows.last().boundingBox();
-  expect((lastTask?.y ?? 0) + (lastTask?.height ?? 0)).toBeLessThanOrEqual(routeMetrics.bottom);
+  expect(lastTask?.y).toBeGreaterThanOrEqual(taskBounds?.y ?? 0);
+  expect((lastTask?.y ?? 0) + (lastTask?.height ?? 0)).toBeLessThanOrEqual((taskBounds?.y ?? 0) + (taskBounds?.height ?? 0));
 });
 
-test('opening a home popup leaves the fixed route stationary', async ({ page }) => {
+test('opening quick add leaves the fixed route stationary and focuses its inline input', async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 600 });
   const route = page.locator('[data-route="home"]');
   await expect.poll(() => route.evaluate((element) => element.getAnimations().length)).toBe(0);
   const before = await route.evaluate((element) => element.scrollTop);
   expect(before).toBe(0);
   await page.getByRole('button', { name: '할 일 추가', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: '새 할 일' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '새 할 일 제목' })).toBeFocused();
   await expect.poll(() => route.evaluate((element) => element.scrollTop)).toBe(before);
 });

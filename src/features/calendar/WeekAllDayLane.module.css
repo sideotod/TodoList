@@ -68,7 +68,7 @@
   position: relative;
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--calendar-day-count, 7), minmax(0, 1fr));
   min-height: 0;
   overflow: hidden;
   margin-right: var(--space-2);

@@ -6,14 +6,15 @@ import type { ItemView, ProposedCalendarItem } from '../../domain/items';
 import { getTaskCategories } from '../../domain/task-categories';
 import { getLocalDate } from '../../domain/time';
 import { useRepository, useItems } from '../../lib/repository-context';
-import { parseRouteDate, updateRouteSearchParam } from '../../lib/route-date';
+import { parseRouteDate, updateRouteDate, updateRouteSearchParam } from '../../lib/route-date';
 import { useForegroundClock } from '../shell/useForegroundClock';
 import { AppShell } from '../shell/AppShell';
 import { createLocalPreviewFixture } from '../home/preview-data';
-import { WeekCalendarView } from '../calendar/WeekCalendarView';
+import { WeekCalendarView, type CalendarViewMode } from '../calendar/WeekCalendarView';
 import { CalendarItemDetailsDialog } from '../calendar/CalendarItemDetailsDialog';
 import { ItemEditor } from '../items/ItemEditor';
 import { createDraftInput } from '../items/draft-input';
+import { getTaskLinkDetachments } from '../items/task-link-mutations';
 import { toLocalView, updateLocalPreviewState, useLocalPreviewState, type ReminderOffset } from '../../lib/local-preview-store';
 import { useDesktopPreferences } from '../../lib/desktop-preferences';
 import styles from '../home/HomeExperience.module.css';
@@ -35,7 +36,7 @@ export function CalendarRoute({ initialNowMs }: { initialNowMs: number }) {
     </Suspense>
   );
 
-  return <AppShell previewItems={fallback} previewContent={previewCalendar}>{signedInCalendar}</AppShell>;
+  return <AppShell previewItems={fallback} previewContent={previewCalendar} todayDate={localDate}>{signedInCalendar}</AppShell>;
 }
 
 type CalendarWorkspaceProps = {
@@ -50,9 +51,12 @@ type CalendarWorkspaceProps = {
 function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, reminderOffsets }: CalendarWorkspaceProps) {
   const repository = useRepository();
   const preferences = useDesktopPreferences();
+  const calendarItems = items.filter((item) => item.display.kind === 'task' ? preferences.calendarVisibility.tasks : item.display.kind === 'event' ? preferences.calendarVisibility.events : preferences.calendarVisibility.progress);
   const searchParams = useSearchParams();
   const routeDate = parseRouteDate(searchParams.get('date'));
-  const showingPeriods = searchParams.get('filter') === 'period';
+  const viewParam = searchParams.get('view');
+  const view: CalendarViewMode = viewParam === 'day' || viewParam === 'week' || viewParam === 'month' || viewParam === 'year'
+    ? viewParam : searchParams.get('filter') === 'period' ? 'periods' : 'week';
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorItem, setEditorItem] = useState<ItemView | null>(null);
   const [detailsItem, setDetailsItem] = useState<ItemView | null>(null);
@@ -82,7 +86,10 @@ function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, remin
 
   function openItem(item: ItemView) {
     editorReturnFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
-    setEditorItem(item);
+    const series = item.display.kind === 'event' && item.display.recurrence
+      ? items.find((candidate) => candidate.display.id === item.display.id) ?? item
+      : item;
+    setEditorItem(series);
     setDetailsItem(item);
   }
 
@@ -107,44 +114,81 @@ function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, remin
   }
 
   async function toggleEventCountdown(item: ItemView, enabled: boolean) {
+    const source = item.display.kind === 'event' && item.display.recurrence
+      ? items.find((candidate) => candidate.display.id === item.display.id) ?? item
+      : item;
     let next: ProposedCalendarItem;
-    if (item.display.kind === 'event') {
-      next = { ...item.display, countdown: { enabled, daysBefore: item.display.countdown?.daysBefore ?? 1, reference: item.display.countdown?.reference ?? 'start' } };
-    } else if (item.display.kind === 'window') {
-      next = { ...item.display, startCountdown: { ...item.display.startCountdown, enabled } };
-    } else if (item.display.kind === 'deadline' && item.display.startCountdown) {
-      next = { ...item.display, startCountdown: { ...item.display.startCountdown, enabled } };
+    if (source.display.kind === 'event') {
+      next = { ...source.display, countdown: { enabled, daysBefore: source.display.countdown?.daysBefore ?? 1, reference: source.display.countdown?.reference ?? 'start' } };
+    } else if (source.display.kind === 'window') {
+      next = { ...source.display, startCountdown: { ...source.display.startCountdown, enabled } };
+    } else if (source.display.kind === 'deadline' && source.display.startCountdown) {
+      next = { ...source.display, startCountdown: { ...source.display.startCountdown, enabled } };
     } else return;
     if (preview) {
       await saveLocal(next, reminderOffsets?.[item.display.id] ?? null);
       return;
     }
     if (!repository) throw new Error('저장소에 연결할 수 없습니다.');
-    const result = await repository.saveDraft(createDraftInput(item, next));
+      const result = await repository.saveDraft(createDraftInput(source, next));
     if (result.status === 'saved' || result.status === 'queued') return;
     throw new Error(result.status === 'conflict'
       ? '다른 기기에서 일정이 바뀌었습니다. 최신 내용을 확인한 뒤 다시 시도해 주세요.'
       : '다른 탭에서 일정이 수정되었습니다. 최신 내용을 불러온 뒤 다시 시도해 주세요.');
   }
 
+  async function toggleCompletion(item: ItemView) {
+    if (item.display.kind !== 'task' && item.display.kind !== 'deadline' && item.display.kind !== 'window') return;
+    const next: ProposedCalendarItem = { ...item.display, completion: item.display.completion === 'completed' ? 'pending' : 'completed' };
+    if (preview) { await saveLocal(next, reminderOffsets?.[item.display.id] ?? null); return; }
+    if (!repository) throw new Error('저장소에 연결할 수 없습니다.');
+    const result = await repository.saveDraft(createDraftInput(item, next));
+    if (result.status !== 'saved' && result.status !== 'queued') throw new Error('완료 상태를 저장하지 못했습니다.');
+  }
+
+  async function toggleLinkedTaskCompletion(taskId: string, completed: boolean) {
+    const task = items.find((candidate) => candidate.display.id === taskId && candidate.display.kind === 'task');
+    if (!task || task.display.kind !== 'task') throw new Error('연결된 할 일을 찾을 수 없습니다. 연결을 해제한 뒤 다시 시도해 주세요.');
+    const next: ProposedCalendarItem = { ...task.display, completion: completed ? 'completed' : 'pending' };
+    if (preview) {
+      updateLocalPreviewState(fallback, (current) => ({ ...current, items: current.items.map((entry) => entry.display.id === taskId ? toLocalView(next) : entry) }));
+      return;
+    }
+    if (!repository) throw new Error('저장소에 연결할 수 없습니다.');
+    const result = await repository.saveDraft(createDraftInput(task, next));
+    if (result.status !== 'saved' && result.status !== 'queued') throw new Error('연결된 할 일을 저장하지 못했습니다.');
+  }
+
   async function deleteItem(item: ItemView) {
     if (!window.confirm(`“${item.display.title}” 항목을 삭제할까요?`)) return;
     try {
+      const source = item.display.kind === 'event' && item.display.recurrence
+        ? items.find((candidate) => candidate.display.id === item.display.id) ?? item
+        : item;
       if (preview) {
+        const detachments = getTaskLinkDetachments(items, source.display.id);
+        const detached = new Map(detachments.map((entry) => [entry.period.display.id, entry.proposal]));
         updateLocalPreviewState(fallback, (current) => ({
           ...current,
-          items: current.items.filter((entry) => entry.display.id !== item.display.id),
+          items: current.items.filter((entry) => entry.display.id !== source.display.id).map((entry) => { const proposal = detached.get(entry.display.id); return proposal ? toLocalView(proposal) : entry; }),
           reminderOffsets: Object.fromEntries(Object.entries(current.reminderOffsets).filter(([id]) => id !== item.display.id)),
         }));
         setEditorOpen(false);
         setEditorItem(null);
+        setDetailsItem(null);
         return;
       }
       if (!repository) return;
-      const result = await repository.saveDraft(createDraftInput(item, item.display, 'delete'));
+      const detachments = getTaskLinkDetachments(items, source.display.id);
+      for (const detachment of detachments) {
+        const detached = await repository.saveDraft(createDraftInput(detachment.period, detachment.proposal));
+        if (detached.status !== 'saved' && detached.status !== 'queued') throw new Error('연결된 기간을 먼저 저장하지 못해 할 일을 삭제하지 않았습니다.');
+      }
+      const result = await repository.saveDraft(createDraftInput(source, source.display, 'delete'));
       if (result.status === 'saved' || result.status === 'queued' || result.status === 'cancelled') {
         setEditorOpen(false);
         setEditorItem(null);
+        setDetailsItem(null);
       } else setActionError('다른 기기에서 수정되었습니다. 충돌을 확인한 뒤 다시 삭제해 주세요.');
     } catch (failure) {
       setActionError(failure instanceof Error ? failure.message : '일정을 삭제하지 못했습니다.');
@@ -154,10 +198,10 @@ function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, remin
   return (
     <>
       <WeekCalendarView
-        items={items}
+        items={calendarItems}
         nowMs={nowMs}
         initialDate={routeDate ?? initialDate}
-        showingPeriods={showingPeriods}
+        view={view}
         weekStartsOn={preferences.weekStartsOn}
         timeFormat={preferences.timeFormat}
         timeZone={preferences.timeZone}
@@ -165,9 +209,13 @@ function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, remin
         onAddEvent={(date) => addOn(date)}
         onAdd={addOn}
         onOpen={openItem}
-        onViewChange={(view) => updateRouteSearchParam('filter', view === 'periods' ? 'period' : null)}
+        onToggleTask={(item) => { void toggleCompletion(item).catch((failure: unknown) => setActionError(failure instanceof Error ? failure.message : '완료 상태를 저장하지 못했습니다.')); }}
+        onViewChange={(nextView) => {
+          updateRouteSearchParam('filter', nextView === 'periods' ? 'period' : null);
+          updateRouteSearchParam('view', nextView === 'week' || nextView === 'periods' ? null : nextView);
+        }}
       />
-      {detailsItem && <CalendarItemDetailsDialog key={detailsItem.display.id} item={detailsItem} nowMs={nowMs} onClose={() => setDetailsItem(null)} onEdit={editDetailsItem} onToggleCountdown={toggleEventCountdown} />}
+      {detailsItem && <CalendarItemDetailsDialog key={detailsItem.display.id} allItems={items} item={detailsItem} nowMs={nowMs} onClose={() => setDetailsItem(null)} onDelete={() => { void deleteItem(detailsItem); }} onComplete={() => { void toggleCompletion(detailsItem).catch((failure: unknown) => setActionError(failure instanceof Error ? failure.message : '완료 상태를 저장하지 못했습니다.')); }} onCalendar={() => { const timing = detailsItem.display.timing; const date = timing.type === 'date' ? timing.endDate : timing.type === 'time' ? getLocalDate(Date.parse(timing.startAt ?? timing.endAt ?? new Date(nowMs).toISOString()), timing.timeZone) : initialDate; updateRouteDate(date); updateRouteSearchParam('view', 'day'); setDetailsItem(null); }} onEdit={editDetailsItem} onToggleCountdown={toggleEventCountdown} />}
       {actionError && <p className={styles.feedback} role="alert">{actionError}</p>}
       {editorOpen && (
         <ItemEditor
@@ -180,6 +228,8 @@ function CalendarWorkspace({ items, fallback, nowMs, initialDate, preview, remin
           initialReminderOffset={editorItem ? reminderOffsets?.[editorItem.display.id] ?? null : null}
           selectedDate={editorDate}
           taskCategories={getTaskCategories(items)}
+          availableTasks={items}
+          onToggleLinkedTask={toggleLinkedTaskCompletion}
           onClose={() => setEditorOpen(false)}
           onSaved={() => { setEditorOpen(false); setEditorItem(null); }}
           onConflict={() => setActionError('동기화 충돌이 있습니다. 양쪽 버전을 확인해 주세요.')}

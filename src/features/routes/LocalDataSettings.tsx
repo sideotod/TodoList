@@ -145,6 +145,11 @@ function parsePreferences(value: unknown): DesktopPreferences {
     timeZone: value.timeZone,
     colorTheme: parseColorTheme(value.colorTheme) ?? DEFAULT_DESKTOP_PREFERENCES.colorTheme,
     taskCategories: normalizeTaskCategories(value.taskCategories),
+    calendarVisibility: isRecord(value.calendarVisibility) ? {
+      tasks: typeof value.calendarVisibility.tasks === 'boolean' ? value.calendarVisibility.tasks : true,
+      events: typeof value.calendarVisibility.events === 'boolean' ? value.calendarVisibility.events : true,
+      progress: typeof value.calendarVisibility.progress === 'boolean' ? value.calendarVisibility.progress : true,
+    } : DEFAULT_DESKTOP_PREFERENCES.calendarVisibility,
   };
 }
 

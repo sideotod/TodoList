@@ -2,7 +2,7 @@
 
 import { Temporal } from '@js-temporal/polyfill';
 import { useMemo, useState } from 'react';
-import type { KeyboardEvent, MouseEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react';
 import type { ItemView } from '../../domain/items';
 import { isItemDeleted } from '../../domain/projections';
 import { getWeeklyOccurrenceForDate } from '../../domain/recurrence';
@@ -77,7 +77,7 @@ export function WeekTimeGrid({ dates, today, items, timeZone, timeFormat, nowMs,
         {hours.map((hour) => <span data-edge={hour === visibleStartHour ? 'start' : hour === visibleEndHour ? 'end' : undefined} key={hour} style={{ top: (hour - visibleStartHour) * PIXELS_PER_HOUR }}>{formatHour(hour, timeFormat)}</span>)}
         {showCurrentTimeLabel && <span className={styles.currentTimeLabel} style={{ top: (currentMinute - startMinute) * pixelsPerMinute }}>{currentTimeLabel}</span>}
       </div>
-      <div className={styles.columns}>
+      <div className={styles.columns} style={{ '--calendar-day-count': dates.length } as CSSProperties}>
         {dates.map((date, dayIndex) => (
           <div className={styles.column} data-today={date === today} key={date}>
             <div className={styles.canvas} style={{ height: canvasHeight }}>

@@ -17,8 +17,9 @@ test('starts without a preview query and keeps locally saved tasks after reload'
 
   await page.getByRole('link', { name: '캘린더' }).click();
   await expect(page.locator('[data-view="week"]')).toBeVisible();
-  await page.getByRole('link', { name: '사용자 설정' }).click();
-  await expect(page.getByText('로컬 사용', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '설정 · 내 공간' }).click();
+  await expect(page.getByRole('dialog', { name: '설정' })).toBeVisible();
+  await expect(page.locator('[data-app-state="local-only"]')).toBeVisible();
 });
 
 test('home, calendar and settings expose one main landmark each', async ({ page }) => {
@@ -37,23 +38,23 @@ test('home, calendar and settings expose one main landmark each', async ({ page 
 
 test('home date and weekly date context stay aligned across navigation', async ({ page }) => {
   await page.goto('/?preview=design&date=2026-10-10');
-  await expect(page.getByRole('heading', { name: '10월 10일 토요일' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '10월 10일 토요일', exact: true })).toBeVisible();
 
   await page.getByRole('link', { name: '캘린더' }).click();
-  await expect(page.getByRole('heading', { name: /2026년 10월 4일.*10일/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /2026년 10월 5일.*11일/ })).toBeVisible();
   await expect(page).toHaveURL(/date=2026-10-10/);
 
   await page.getByRole('button', { name: '다음 주' }).click();
-  await expect(page.getByRole('heading', { name: /2026년 10월 11일.*17일/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /2026년 10월 12일.*18일/ })).toBeVisible();
   await expect(page).toHaveURL(/date=2026-10-17/);
 
   await page.getByRole('link', { name: '홈' }).click();
-  await expect(page.getByRole('heading', { name: '10월 17일 토요일' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '10월 17일 토요일', exact: true })).toBeVisible();
   await expect(page).toHaveURL(/date=2026-10-17/);
 });
 
 test('calendar exposes its existing period list without losing the weekly view', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 600 });
+  await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto('/calendar/?preview=design');
   await page.getByRole('button', { name: '기간 일정 보기' }).click();
   await expect(page.getByRole('region', { name: '기간별 일정' })).toBeVisible();
@@ -66,15 +67,13 @@ test('calendar exposes its existing period list without losing the weekly view',
   await expect(page).not.toHaveURL(/filter=period/);
 });
 
-test('all D-day opens a read-only full list while sorting opens the reorder view', async ({ page }) => {
+test('all D-day navigates to Progress while home sorting opens its reorder view', async ({ page }) => {
   await page.goto('/?preview=design');
   await page.getByRole('button', { name: '전체 D-day 보기' }).click();
-  const listDialog = page.getByRole('dialog', { name: '전체 D-day' });
-  await expect(listDialog).toBeVisible();
-  await expect(listDialog.getByRole('article', { name: '학회 논문 제출' })).toBeVisible();
-  await expect(listDialog.getByRole('heading', { name: '완료 및 종료' })).toBeVisible();
-  await listDialog.getByRole('button', { name: '닫기' }).click();
+  await expect(page.getByRole('heading', { name: 'Progress', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '학회 논문 제출', exact: true })).toBeVisible();
 
+  await page.goto('/?preview=design');
   await page.getByRole('button', { name: '메뉴' }).click();
   await page.getByRole('menuitem', { name: '디데이 정렬' }).click();
   const sortDialog = page.getByRole('dialog', { name: '디데이 정렬' });
@@ -83,7 +82,7 @@ test('all D-day opens a read-only full list while sorting opens the reorder view
   await expect(sortDialog.getByRole('button', { name: '저장' })).toBeVisible();
 });
 
-test('checklist-complete periods appear only in the completed D-day list', async ({ page }) => {
+test('checklist-complete periods appear in the Progress completed filter', async ({ page }) => {
   await page.goto('/?preview=design');
   await page.evaluate(() => {
     const item = {
@@ -104,10 +103,11 @@ test('checklist-complete periods appear only in the completed D-day list', async
     }));
   });
   await page.reload();
-  await page.getByRole('button', { name: '전체 D-day 보기' }).click();
-  const listDialog = page.getByRole('dialog', { name: '전체 D-day' });
-  await expect(listDialog.getByTestId('active-periods-pane').getByText('완료한 제출 준비', { exact: true })).toHaveCount(0);
-  await expect(listDialog.getByTestId('all-periods-list')).toContainText('완료한 제출 준비');
+  await page.goto('/progress/?preview=design');
+  await page.getByRole('button', { name: '완료', exact: true }).click();
+  const completedCard = page.locator('article').filter({ has: page.getByRole('button', { name: '완료한 제출 준비', exact: true }) });
+  await expect(completedCard).toBeVisible();
+  await expect(completedCard.getByRole('button', { name: '완료 취소' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('settings uses one compact fixed-accent explanation at desktop window sizes', async ({ page }) => {

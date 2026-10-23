@@ -12,6 +12,17 @@ export function deriveChecklistStatus(items: readonly PeriodChecklistItem[]): Ch
   return remaining === 0 ? { kind: 'complete', remaining: 0, total } : { kind: 'incomplete', remaining, total };
 }
 
+export function resolvePeriodChecklist(checklist: readonly PeriodChecklistItem[], items: readonly ItemView[]): PeriodChecklistItem[] {
+  const tasks = new Map(items
+    .filter((item) => item.display.kind === 'task' && !isItemDeleted(item))
+    .map((item) => [item.display.id, item.display] as const));
+  return checklist.map((entry) => {
+    if (!entry.linkedTaskId) return entry;
+    const task = tasks.get(entry.linkedTaskId);
+    return task?.kind === 'task' ? { ...entry, title: task.title, completed: task.completion === 'completed' } : entry;
+  });
+}
+
 export function isItemDeleted(item: ItemView): boolean {
   return item.canonical?.deletedAt != null || item.localDraft?.mutationKind === 'delete';
 }

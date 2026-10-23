@@ -3,6 +3,11 @@
   width: 100%;
 }
 
+.compactCalendar { display: block; min-height: 0; flex: none; }
+.compactCalendar .days { flex: none; }
+.compactCalendar .week { min-height: 35px; flex: none; }
+.compactCalendar .day { gap: 0; }
+
 @media (min-width: 761px) {
   .calendar {
     display: flex;
@@ -24,6 +29,20 @@
 
 .calendar[aria-label='월간 일정 및 할 일'] {
   margin-top: 6px;
+}
+
+@media (min-width: 761px) {
+  .calendar.compactCalendar { display: block; min-height: 0; flex: none; }
+  .calendar.compactCalendar .days { flex: none; }
+  .calendar.compactCalendar .week { min-height: 35px; flex: none; }
+}
+
+@media (min-width: 901px) and (max-height: 640px) {
+  .calendar.compactCalendar .week { min-height: 20px; flex: none; }
+  .calendar.compactCalendar .dateBadge { width: 18px; height: 18px; flex-basis: 18px; }
+  .calendar.compactCalendar .selectedFillDesktop { width: 18px; height: 18px; }
+  .calendar.compactCalendar .dayNumber { font-size: 11px; }
+  .calendar.compactCalendar .dots { min-height: 2px; }
 }
 
 .heading {

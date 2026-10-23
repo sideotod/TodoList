@@ -7,6 +7,7 @@ import { DEFAULT_TASK_CATEGORY, getCategoryColor, getTaskCategoryColor, getTaskC
 import { getColorTheme } from '../../domain/color-themes';
 import { isValidTimeZone, parseLocalDateTime } from '../../domain/time';
 import { validateProposedItem } from '../../domain/validation';
+import { resolvePeriodChecklist } from '../../domain/projections';
 import { useRepository } from '../../lib/repository-context';
 import type { ReminderOffset } from '../../lib/local-preview-store';
 import type { EventCountdown } from '../../domain/items';
@@ -43,11 +44,13 @@ type EditorProps = {
   initialReminderOffset?: ReminderOffset | null;
   taskCategories?: readonly TaskCategory[];
   onLocalSave?: (proposal: ProposedCalendarItem, reminderOffset: ReminderOffset | null) => Promise<void>;
+  availableTasks?: readonly ItemView[];
+  onToggleLinkedTask?: (taskId: string, completed: boolean) => Promise<void>;
 };
 
 const DEFAULT_ZONE = 'Asia/Seoul';
 
-export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaultMode = 'date', defaultStartDate = selectedDate, defaultStartTime = '09:00', defaultTimeZone = DEFAULT_ZONE, returnFocusRef, onClose, onSaved, onConflict, onDelete, initialReminderOffset = null, taskCategories = [], onLocalSave }: EditorProps) {
+export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaultMode = 'date', defaultStartDate = selectedDate, defaultStartTime = '09:00', defaultTimeZone = DEFAULT_ZONE, returnFocusRef, onClose, onSaved, onConflict, onDelete, initialReminderOffset = null, taskCategories = [], onLocalSave, availableTasks = [], onToggleLinkedTask }: EditorProps) {
   const repository = useRepository();
   const titleRef = useRef<HTMLInputElement>(null);
   const initialItem = initial?.display ?? null;
@@ -82,11 +85,12 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
   const initialRecurrence = initialItem?.kind === 'event' ? initialItem.recurrence : undefined;
   const [repeatMode, setRepeatMode] = useState<'once' | 'weekly'>(initialRecurrence ? 'weekly' : 'once');
   const [repeatDays, setRepeatDays] = useState<number[]>(initialRecurrence?.daysOfWeek ?? [getWeekday(initialStartDate)]);
+  const [repeatUntilDate, setRepeatUntilDate] = useState(initialRecurrence?.untilDate ?? '');
   const [hasEventEnd, setHasEventEnd] = useState(initialItem?.kind === 'event' && initialItem.timing.type === 'time' ? initialItem.timing.endAt !== null : true);
   const [periodFocus, setPeriodFocus] = useState<'start' | 'deadline'>(initialItem && (initialItem.kind === 'window' || initialItem.kind === 'deadline') ? initialItem.focus ?? 'deadline' : 'deadline');
   const [unscheduled, setUnscheduled] = useState(initialTiming?.type === 'unscheduled' || (!initialItem && defaultMode === 'unscheduled'));
   const [completion, setCompletion] = useState<Completion>(initialItem && 'completion' in initialItem ? initialItem.completion ?? 'pending' : 'pending');
-  const [checklist, setChecklist] = useState<PeriodChecklistItem[]>(initialItem && (initialItem.kind === 'deadline' || initialItem.kind === 'window') ? [...initialItem.checklist] : []);
+  const [checklist, setChecklist] = useState<PeriodChecklistItem[]>(initialItem && (initialItem.kind === 'deadline' || initialItem.kind === 'window') ? resolvePeriodChecklist(initialItem.checklist, availableTasks) : []);
   const [countdownEnabled, setCountdownEnabled] = useState(initialItem?.kind === 'event' ? initialItem.countdown?.enabled ?? false : initialItem?.kind === 'window' ? initialItem.startCountdown.enabled : initialItem?.kind === 'deadline' ? initialItem.startCountdown?.enabled ?? true : kind !== 'event');
   const [daysBefore, setDaysBefore] = useState(initialItem?.kind === 'event' ? initialItem.countdown?.daysBefore ?? 1 : initialItem?.kind === 'window' ? initialItem.startCountdown.daysBefore : initialItem?.kind === 'deadline' ? initialItem.startCountdown?.daysBefore ?? 1 : 1);
   const [reminderOffset, setReminderOffset] = useState<ReminderOffset | null>(kind === 'event' ? null : initialReminderOffset);
@@ -159,7 +163,7 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
     try {
       const proposalKind = effectiveKind;
       const recurrence: WeeklyRecurrence | undefined = kind === 'event' && repeatMode === 'weekly'
-        ? { frequency: 'weekly', daysOfWeek: repeatDays, untilDate: initialRecurrence?.untilDate ?? null }
+        ? { frequency: 'weekly', daysOfWeek: repeatDays, untilDate: repeatUntilDate || null }
         : undefined;
       proposal = buildProposal({
         initial: initialItem, timingChanged, categoryChanged, countdownChanged, displayChanged,
@@ -267,7 +271,7 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
     color: getTaskCategoryColor(entry.color).color,
   }));
   const repeatSummary = repeatMode === 'weekly'
-    ? `매주 ${getWeekdayOrder(preferences.weekStartsOn).filter((day) => repeatDays.includes(day)).map(getWeekdayLabel).join('·')}${initialRecurrence?.untilDate ? ` · ${dateLabel(initialRecurrence.untilDate)}까지` : ''}` : '한 번';
+    ? `매주 ${getWeekdayOrder(preferences.weekStartsOn).filter((day) => repeatDays.includes(day)).map(getWeekdayLabel).join('·')}${repeatUntilDate ? ` · ${dateLabel(repeatUntilDate)}까지` : ''}` : '한 번';
   const weeklyError = invalidWeeklyRange ? '매주 반복 일정은 하루 안에 끝나야 합니다. 반복을 한 번으로 바꾸거나 날짜를 하루로 맞춰 주세요.' : repeatMode === 'weekly' ? errors.recurrence : undefined;
   const displaySummary = `${effectiveKind === 'event' ? `홈 카드 ${showInProgressSummary ? '표시' : '숨김'} · ` : ''}${countdownEnabled && countdownAvailable ? `${countdownTarget} 기준 · ${getCountdownWindowLabel(daysBefore)}` : '남은 시간 숨김'}`;
 
@@ -420,7 +424,7 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
               setRepeatDays((current) => current.includes(day) ? current.length > 1 ? current.filter((entry) => entry !== day) : current : [...current, day].sort((first, second) => first - second)); setDirty(true);
             }} type="button">{getWeekdayLabel(day)}</button>)}
           </fieldset>}
-          {repeatMode === 'weekly' && initialRecurrence?.untilDate && <p className={styles.help}>{dateLabel(initialRecurrence.untilDate)}까지 반복</p>}
+          {repeatMode === 'weekly' && <label className={styles.repeatUntil}><span>반복 종료일 <small>선택 사항</small></span><input aria-label="반복 종료일" onChange={(event) => { setRepeatUntilDate(event.currentTarget.value); setDirty(true); }} type="date" value={repeatUntilDate} /><button disabled={!repeatUntilDate} onClick={() => { setRepeatUntilDate(''); setDirty(true); }} type="button">종료일 지우기</button></label>}
           {weeklyError && <p className={styles.fieldError} id="editor-repeat-error" role="alert">{weeklyError}</p>}
         </div>
       </EditorSection>}
@@ -445,8 +449,8 @@ export function ItemEditor({ initial, selectedDate, defaultKind = 'task', defaul
           </div>}
         </> : <p className={styles.help}>시작 날짜를 설정하면 남은 시간을 표시할 수 있어요.</p>}
       </EditorSection>}
-      {period && <EditorSection title="하위 할 일 · 완료" summary={`${checklist.filter((item) => item.completed).length}/${checklist.length}개 완료 · ${completion === 'completed' ? '기간 완료' : '미완료'}`} invalid={Object.keys(errors).some((path) => path.startsWith('checklist'))}>
-        <ChecklistEditor value={checklist} onChange={(value) => { setChecklist(value); setDirty(true); }} disabled={readOnly} showHeading={false} />
+      {period && <EditorSection title="하위 할 일 · 완료" summary={`${resolvePeriodChecklist(checklist, availableTasks).filter((item) => item.completed).length}/${checklist.length}개 완료 · ${completion === 'completed' ? '기간 완료' : '미완료'}`} invalid={Object.keys(errors).some((path) => path.startsWith('checklist'))}>
+        <ChecklistEditor availableTasks={availableTasks} onToggleLinkedTask={onToggleLinkedTask} value={checklist} onChange={(value) => { setChecklist(value); setDirty(true); }} disabled={readOnly} showHeading={false} />
         {Object.entries(errors).filter(([path]) => path.startsWith('checklist')).map(([path, message]) => <p className={styles.fieldError} key={path} role="alert">{message}</p>)}
         <label className={styles.switch}><input checked={completion === 'completed'} onChange={(event) => setCompletion(event.currentTarget.checked ? 'completed' : 'pending')} type="checkbox" /><span>{effectiveKind === 'window' ? '신청 완료' : '제출 완료'}</span></label>
       </EditorSection>}

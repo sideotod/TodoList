@@ -19,6 +19,7 @@ type WeekAllDayLaneProps = {
 type PeriodSpan = { item: ItemView; start: number; end: number; row: number };
 
 export function WeekAllDayLane({ dates, items, timeZone, onOpen }: WeekAllDayLaneProps) {
+  const dayCount = Math.max(1, dates.length);
   const [expanded, setExpanded] = useState(true);
   const spans = useMemo(() => getPeriodSpans(dates, items, timeZone), [dates, items, timeZone]);
   const periodRows = spans.reduce((max, span) => Math.max(max, span.row + 1), 0);
@@ -41,7 +42,7 @@ export function WeekAllDayLane({ dates, items, timeZone, onOpen }: WeekAllDayLan
         {!expanded && <span className={styles.itemCount}>{itemCount}개</span>}
       </button>
       <div aria-hidden={!expanded} className={styles.boardShell} data-open={expanded} inert={!expanded}>
-        <div className={styles.board} id="week-all-day-board" style={{ minHeight: expanded ? laneHeight : 0 }}>
+        <div className={styles.board} id="week-all-day-board" style={{ minHeight: expanded ? laneHeight : 0, '--calendar-day-count': dayCount } as CSSProperties}>
           {days.map(({ date, items: dayItems, row }) => {
           const topItem = dayItems[0];
           return (
@@ -76,9 +77,9 @@ export function WeekAllDayLane({ dates, items, timeZone, onOpen }: WeekAllDayLan
             key={span.item.display.id}
             onClick={() => onOpen(span.item)}
             style={{
-              left: `calc(${(span.start / 7) * 100}% + 6px)`,
+              left: 'calc(' + (span.start / dayCount) * 100 + '% + 6px)',
               top: 4 + span.row * 22,
-              width: `calc(${((span.end - span.start + 1) / 7) * 100}% - 12px)`,
+              width: 'calc(' + ((span.end - span.start + 1) / dayCount) * 100 + '% - 12px)',
               ...getColorStyle(span.item.display.id, span.item.display.categoryColor),
             }}
             title={span.item.display.title}

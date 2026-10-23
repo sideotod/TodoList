@@ -27,15 +27,13 @@ export function shiftDate(date: string, amount: number): string {
   return dateKey(shifted);
 }
 
-export function getMonthCells(monthKey: string): CalendarCell[] {
+export function getMonthCells(monthKey: string, weekStartsOn: 0 | 1 = 0): CalendarCell[] {
   const [year, month] = monthKey.split('-').map(Number);
   const first = new Date(Date.UTC(year, month - 1, 1));
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const firstDayOffset = first.getUTCDay();
-  const rowCount = Math.ceil((firstDayOffset + lastDay) / 7);
+  const firstDayOffset = (first.getUTCDay() - weekStartsOn + 7) % 7;
   const start = new Date(Date.UTC(year, month - 1, 1 - firstDayOffset, 12));
 
-  return Array.from({ length: rowCount * 7 }, (_, index) => {
+  return Array.from({ length: 42 }, (_, index) => {
     const date = new Date(start);
     date.setUTCDate(start.getUTCDate() + index);
     const cellDate = dateKey(date);
@@ -80,8 +78,8 @@ export function formatCalendarHeading(date: string): string {
   return `${values.get('month')}월 ${values.get('day')}일 ${values.get('weekday')}`;
 }
 
-export function getWeekdayLabels(): readonly string[] {
-  return WEEKDAYS;
+export function getWeekdayLabels(weekStartsOn: 0 | 1 = 0): readonly string[] {
+  return [...WEEKDAYS.slice(weekStartsOn), ...WEEKDAYS.slice(0, weekStartsOn)];
 }
 
 export function getDateMonth(date: string): string {

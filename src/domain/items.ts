@@ -25,6 +25,7 @@ export type PeriodChecklistItem = {
   id: string;
   title: string;
   completed: boolean;
+  linkedTaskId?: string;
 };
 export type ChecklistStatus =
   | { kind: 'none'; total: 0 }

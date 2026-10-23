@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemView, PendingDraft, ProposedCalendarItem } from '../../src/domain/items';
-import { deriveChecklistStatus, selectCalendarAgenda, selectDailyTasks, selectHomePeriods, selectPeriodGroups, selectUrgentHomeTimeline } from '../../src/domain/projections';
+import { deriveChecklistStatus, resolvePeriodChecklist, selectCalendarAgenda, selectDailyTasks, selectHomePeriods, selectPeriodGroups, selectUrgentHomeTimeline } from '../../src/domain/projections';
 import { getNextWeeklyOccurrence, getWeeklyOccurrenceForDate } from '../../src/domain/recurrence';
 import { makeDeadline, makeEvent, makeTask, makeWindow, withCanonicalMetadata } from '../fixtures/items';
 
@@ -29,6 +29,18 @@ describe('checklist status', () => {
     expect(deriveChecklistStatus([done])).toEqual({ kind: 'complete', remaining: 0, total: 1 });
     expect(deriveChecklistStatus([done, pending])).toEqual({ kind: 'incomplete', remaining: 1, total: 2 });
     expect(deriveChecklistStatus([done, { ...pending, completed: true }])).toEqual({ kind: 'complete', remaining: 0, total: 2 });
+  });
+
+  it('resolves a linked checklist row from its stable task ID and falls back to the snapshot after deletion', () => {
+    const period = view(makeDeadline({ checklist: [{ id: 'linked-row', title: '이전 제목', completed: false, linkedTaskId: 'task-1' }] }));
+    const task = view(makeTask({ id: 'task-1', title: '현재 할 일 제목', completion: 'completed' }));
+    expect(resolvePeriodChecklist(period.display.kind === 'deadline' ? period.display.checklist : [], [task])).toEqual([
+      { id: 'linked-row', title: '현재 할 일 제목', completed: true, linkedTaskId: 'task-1' },
+    ]);
+    task.canonical = withCanonicalMetadata(task.display, { deletedAt: '2026-10-03T00:00:00.000Z' });
+    expect(resolvePeriodChecklist(period.display.kind === 'deadline' ? period.display.checklist : [], [task])).toEqual([
+      { id: 'linked-row', title: '이전 제목', completed: false, linkedTaskId: 'task-1' },
+    ]);
   });
 
   it('DATA-04/06 parent completion and checklist completion never change each other', () => {

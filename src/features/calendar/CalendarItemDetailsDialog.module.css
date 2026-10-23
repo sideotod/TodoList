@@ -1,5 +1,12 @@
 .overlay {
-  composes: overlay from '../../styles/controls.module.css';
+  position: fixed;
+  z-index: var(--layer-dialog);
+  inset: 68px max(18px, calc((100vw - 1476px) / 2)) 18px auto;
+  display: grid;
+  width: min(370px, calc(100vw - 28px));
+  place-items: stretch;
+  padding: 0;
+  background: transparent;
 }
 
 .dialog {
@@ -7,8 +14,14 @@
   flex-direction: column;
   composes: dialog from '../../styles/controls.module.css';
   width: min(360px, 100%);
-  max-height: calc(100svh - 40px);
+  width: 100%;
+  height: 100%;
+  max-height: none;
   overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  background: var(--color-surface);
+  box-shadow: 0 16px 55px color-mix(in srgb, var(--color-shadow) 18%, transparent);
 }
 
 .footer {
@@ -28,6 +41,14 @@
   gap: 0;
   padding: var(--space-4) var(--space-4) var(--space-5);
 }
+
+.inspectorHeader { display: flex; min-height: 46px; align-items: center; justify-content: space-between; padding: 0 18px; border-bottom: 1px solid var(--color-border); color: var(--color-muted); font-size: 9px; font-weight: 650; letter-spacing: .12em; }
+.inspectorHeader button { width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--color-secondary); cursor: pointer; font-size: 20px; line-height: 1; }
+.inspectorHeader button:hover { background: var(--color-accent-soft); color: var(--color-accent); }
+.metadata { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 0; border-top: 1px solid var(--color-border); }
+.metadata span { display: grid; gap: 3px; }
+.metadata small { color: var(--color-muted); font-size: 10px; }
+.metadata strong { color: var(--color-foreground); font-size: 11px; font-weight: 550; }
 
 .quickStatus {
   grid-column: 1 / -1;
@@ -215,6 +236,11 @@
   color: var(--color-accent);
 }
 
+.linkedTasks { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.linkedTasks li { display: flex; min-width: 0; align-items: baseline; gap: 8px; color: var(--color-foreground); font-size: 12px; }
+.linkedTasks li > span:first-child { flex: none; color: var(--color-muted); font-size: 11px; }
+.linkedTasks li > span:first-child[data-complete='true'] { color: var(--color-accent); }
+
 @media (prefers-reduced-motion: reduce) {
   .quickSwitch,
   .quickSwitch span {
@@ -223,6 +249,7 @@
 }
 
 .footer {
+  flex-wrap: wrap;
   justify-content: flex-end;
   padding-top: var(--space-3);
   border-top: 0;
@@ -233,6 +260,8 @@
   min-width: 72px;
   min-height: 44px;
 }
+.danger { composes: danger from '../../styles/controls.module.css'; min-height: 44px; }
+.complete { min-height: 44px; padding-inline: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-accent); cursor: pointer; font: inherit; font-size: 12px; }
 
 .primary {
   border-color: var(--color-accent);
@@ -241,14 +270,17 @@
 }
 
 .secondary:focus-visible,
-.primary:focus-visible {
+.primary:focus-visible,
+.danger:focus-visible,
+.complete:focus-visible,
+.inspectorHeader button:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: 2px;
 }
 
 @media (max-width: 560px) {
-  .overlay { align-items: end; padding: 0; }
-  .dialog { width: 100%; max-height: 92svh; border-radius: 20px 20px 0 0; }
+  .overlay { inset: auto 0 0; width: 100%; height: 92svh; }
+  .dialog { width: 100%; height: 100%; max-height: 92svh; border-radius: 20px 20px 0 0; }
 }
 
 .secondary { composes: secondary from '../../styles/controls.module.css'; }

@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 import type { ItemView } from '../../domain/items';
-import { deriveChecklistStatus, selectPeriodGroups, selectUrgentHomeTimeline } from '../../domain/projections';
+import { deriveChecklistStatus, resolvePeriodChecklist, selectPeriodGroups, selectUrgentHomeTimeline } from '../../domain/projections';
 import { movePeriodId, selectCompletedPeriods } from './period-sort';
 import { PeriodCard } from './PeriodCard';
 import { Icon } from '../ui/Icon';
@@ -28,8 +28,8 @@ export function PeriodSortDialog({ items, nowMs, orderIds, initialView = 'sort',
   const completedOrEndedIds = new Set([...groups.completed, ...groups.overdue].map((item) => item.display.id));
   const upcomingTimeline = selectUrgentHomeTimeline(items, nowMs).filter((item) => !completedOrEndedIds.has(item.display.id));
   // Checklist-complete periods belong in the completed pane, never in both columns.
-  const completedChecklistPeriods = upcomingTimeline.filter(isChecklistCompletePeriod);
-  const allUpcoming = upcomingTimeline.filter((item) => !isChecklistCompletePeriod(item));
+  const completedChecklistPeriods = upcomingTimeline.filter((item) => isChecklistCompletePeriod(item, items));
+  const allUpcoming = upcomingTimeline.filter((item) => !isChecklistCompletePeriod(item, items));
   const periods = allUpcoming;
   const rank = new Map(orderIds.map((id, index) => [id, index]));
   const defaultIds = [...periods].sort((a, b) => (rank.get(a.display.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.display.id) ?? Number.MAX_SAFE_INTEGER));
@@ -237,7 +237,7 @@ export function PeriodSortDialog({ items, nowMs, orderIds, initialView = 'sort',
                 <h3 className={styles.paneTitle}>예정 및 진행 중</h3>
                 {allUpcoming.length > 0 ? (
                   <ol className={styles.allPeriodsList} data-testid="active-periods-list">
-                    {allUpcoming.map((item) => <li key={item.display.id}><PeriodCard item={item} nowMs={nowMs} /></li>)}
+                    {allUpcoming.map((item) => <li key={item.display.id}><PeriodCard allItems={items} item={item} nowMs={nowMs} /></li>)}
                   </ol>
                 ) : <p className={styles.empty}>예정되거나 진행 중인 D-day가 없습니다.</p>}
               </>
@@ -263,7 +263,7 @@ export function PeriodSortDialog({ items, nowMs, orderIds, initialView = 'sort',
                       tabIndex={0}
                       style={draggingId === id ? { '--drag-offset-y': `${dragOffset}px` } as CSSProperties : undefined}
                     >
-                      <PeriodCard item={item} nowMs={nowMs} />
+                      <PeriodCard allItems={items} item={item} nowMs={nowMs} />
                     </li>
                   );
                 })}
@@ -278,7 +278,7 @@ export function PeriodSortDialog({ items, nowMs, orderIds, initialView = 'sort',
             <h3 className={styles.paneTitle}>완료 및 종료</h3>
             {completedPeriods.length > 0 ? (
               <ol className={styles.allPeriodsList} data-testid="all-periods-list">
-                {completedPeriods.map((item) => <li key={item.display.id}><PeriodCard item={item} nowMs={nowMs} /></li>)}
+                {completedPeriods.map((item) => <li key={item.display.id}><PeriodCard allItems={items} item={item} nowMs={nowMs} /></li>)}
               </ol>
             ) : <p className={styles.empty}>완료된 일정이 없습니다.</p>}
           </aside>
@@ -302,7 +302,7 @@ function mergeItems(...groups: readonly ItemView[][]): ItemView[] {
   return [...byId.values()];
 }
 
-function isChecklistCompletePeriod(item: ItemView): boolean {
+function isChecklistCompletePeriod(item: ItemView, items: readonly ItemView[]): boolean {
   return (item.display.kind === 'deadline' || item.display.kind === 'window')
-    && deriveChecklistStatus(item.display.checklist).kind === 'complete';
+    && deriveChecklistStatus(resolvePeriodChecklist(item.display.checklist, items)).kind === 'complete';
 }

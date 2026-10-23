@@ -20,13 +20,13 @@ type PeriodProgressSummaryProps = {
 
 export function PeriodProgressSummary({ items, nowMs, onAddSchedule, onViewAll, onOpen, orderIds = [], onOrderChange }: PeriodProgressSummaryProps) {
   const periods = orderPeriods(selectUrgentHomeTimeline(items, nowMs).filter((item) => getPeriodPhase(getTimingBounds(item.display.timing), nowMs) !== 'overdue'), orderIds);
-  const primaryPeriods = periods.slice(0, 3);
+  const primaryPeriods = periods.slice(0, 4);
   const periodIds = periods.map((item) => item.display.id);
 
   return (
     <section aria-label="임박한 일정" className={styles.summary}>
       <div className={styles.summaryHeader}>
-        <h2>다가오는 일정</h2>
+        <h2>가까운 마감과 시작</h2>
         <div className={styles.headerActions}>
           {onViewAll && <button aria-label="전체 D-day 보기" className={styles.viewAll} onClick={onViewAll} type="button">전체 D-day 보기</button>}
         </div>
@@ -34,7 +34,7 @@ export function PeriodProgressSummary({ items, nowMs, onAddSchedule, onViewAll, 
       {periods.length > 0 ? (
         <>
           <div className={styles.cardGrid} data-testid="period-card-grid">
-            {primaryPeriods.map((item) => <SortablePeriodCard home item={item} itemIds={periodIds} key={item.display.id} nowMs={nowMs} onOpen={onOpen} onOrderChange={onOrderChange} />)}
+            {primaryPeriods.map((item) => <SortablePeriodCard allItems={items} home item={item} itemIds={periodIds} key={item.display.id} nowMs={nowMs} onOpen={onOpen} onOrderChange={onOrderChange} />)}
           </div>
         </>
       ) : (
@@ -47,10 +47,11 @@ export function PeriodProgressSummary({ items, nowMs, onAddSchedule, onViewAll, 
   );
 }
 
-function SortablePeriodCard({ item, itemIds, nowMs, home = false, onOpen, onOrderChange }: {
+function SortablePeriodCard({ item, itemIds, nowMs, home = false, allItems, onOpen, onOrderChange }: {
   item: ItemView;
   itemIds: readonly string[];
   nowMs: number;
+  allItems: readonly ItemView[];
   home?: boolean;
   onOpen?: (item: ItemView) => void;
   onOrderChange?: (orderIds: string[]) => void;
@@ -133,7 +134,7 @@ function SortablePeriodCard({ item, itemIds, nowMs, home = false, onOpen, onOrde
 
   return (
     <div aria-keyshortcuts={onOrderChange ? 'ArrowUp ArrowDown' : undefined} aria-label={`${item.display.title}${onOrderChange ? ', 길게 눌러 이동하거나 위아래 화살표로 순서 변경' : ''}`} className={styles.sortableCard} data-dragging={dragging} data-drop-target={dropTarget} data-period-card-id={item.display.id} onClickCapture={suppressPostDragClick} onKeyDown={moveWithKeyboard} onPointerCancel={() => { clearHold(); setDragging(false); setDropTarget(false); }} onPointerDown={startHold} onPointerMove={moveHeld} onPointerUp={endHold} role="group" tabIndex={onOrderChange ? 0 : undefined}>
-      <PeriodCard home={home} item={item} nowMs={nowMs} onOpen={onOpen} />
+      <PeriodCard allItems={allItems} home={home} item={item} nowMs={nowMs} onOpen={onOpen} />
     </div>
   );
 }

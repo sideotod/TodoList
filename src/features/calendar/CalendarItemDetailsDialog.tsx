@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ItemView } from '../../domain/items';
+import { resolvePeriodChecklist } from '../../domain/projections';
 import { formatKoreanDate } from './calendar-dates';
 import { PeriodCard } from '../home/PeriodCard';
 import { getCountdownTargetLabel, getCountdownWindowLabel } from '../items/countdown-copy';
@@ -13,9 +14,13 @@ type CalendarItemDetailsDialogProps = {
   onClose: () => void;
   onEdit: () => void;
   onToggleCountdown?: (item: ItemView, enabled: boolean) => Promise<void>;
+  onDelete?: () => void;
+  onComplete?: () => void;
+  onCalendar?: () => void;
+  allItems?: readonly ItemView[];
 };
 
-export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onToggleCountdown }: CalendarItemDetailsDialogProps) {
+export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onToggleCountdown, onDelete, onComplete, onCalendar, allItems = [] }: CalendarItemDetailsDialogProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const display = item.display;
@@ -91,6 +96,7 @@ export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onTogg
   return (
     <div className={styles.overlay} onKeyDown={handleKeyDown} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section aria-labelledby="calendar-item-title" aria-modal="true" className={styles.dialog} ref={dialogRef} role="dialog">
+        <header className={styles.inspectorHeader}><span>DETAILS</span><button aria-label="상세 패널 닫기" onClick={onClose} type="button">×</button></header>
         <div className={styles.body}>
           {display.kind === 'task' ? (
             <article className={styles.taskSummary}>
@@ -107,8 +113,12 @@ export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onTogg
               <div className={styles.taskHeading}><h2 id="calendar-item-title">{display.title}</h2><span>일정</span></div>
               <p className={styles.date}>{dateLabel}</p>
             </article>
-          ) : <PeriodCard expanded item={item} nowMs={nowMs} titleId="calendar-item-title" />}
+          ) : <PeriodCard allItems={allItems} expanded item={item} nowMs={nowMs} titleId="calendar-item-title" />}
           {display.kind === 'task' && <p className={styles.date}>{dateLabel}</p>}
+          {(display.category || timing.type === 'time') && <section aria-label="분류와 시간대" className={styles.metadata}>
+            {display.category && <span><small>카테고리</small><strong>{display.category}</strong></span>}
+            {(timing.type === 'time' || timing.type === 'date') && <span><small>시간대</small><strong>{timing.timeZone}</strong></span>}
+          </section>}
           {display.kind !== 'task' && (
             <section aria-label="빠른 설정" className={styles.quickSettings}>
               <div className={styles.quickSettingCopy}>
@@ -124,12 +134,16 @@ export function CalendarItemDetailsDialog({ item, nowMs, onClose, onEdit, onTogg
               {countdownStatus && <p className={styles.quickStatus} role="status">{countdownStatus}</p>}
             </section>
           )}
+          {(display.kind === 'deadline' || display.kind === 'window') && display.checklist.length > 0 && <section aria-label="연결된 할 일 상태" className={styles.section}><h3>연결된 할 일</h3><ul className={styles.linkedTasks}>{resolvePeriodChecklist(display.checklist, allItems).map((entry) => <li key={entry.id}><span aria-hidden="true" data-complete={entry.completed}>{entry.completed ? '✓' : '○'}</span><span>{entry.title}</span></li>)}</ul></section>}
           {display.notes && <section className={styles.section}><h3>메모</h3><p>{display.notes}</p></section>}
           {display.sourceUrl && <section className={styles.section}><h3>관련 링크</h3><a href={display.sourceUrl} rel="noreferrer" target="_blank">{display.sourceUrl}</a></section>}
         </div>
         <footer className={styles.footer}>
+          {onCalendar && <button className={styles.secondary} onClick={onCalendar} type="button">캘린더</button>}
+          {onDelete && <button className={styles.danger} onClick={onDelete} type="button">삭제</button>}
           <button className={styles.secondary} onClick={onClose} ref={closeRef} type="button">닫기</button>
           <button className={styles.primary} onClick={onEdit} type="button">수정</button>
+          {onComplete && display.kind !== 'event' && <button aria-pressed={'completion' in display && display.completion === 'completed'} className={styles.complete} onClick={onComplete} type="button">{'completion' in display && display.completion === 'completed' ? '완료 취소' : '완료 처리'}</button>}
         </footer>
       </section>
     </div>

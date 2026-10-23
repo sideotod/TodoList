@@ -227,6 +227,44 @@ h3.title {
 /* C1: keep the original compact D-day silhouette in a small desktop window. */
 .card[data-home-card='true'] .countdown { font-size: var(--font-size-12); font-weight: 600; }
 
+.card[data-home-card='true'] {
+  display: grid;
+  height: 39px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(58px, 74px) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 68%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+
+.card[data-home-card='true']:last-child { border-bottom: 0; }
+.card[data-home-card='true'] .heading { position: static; grid-column: 1; min-width: 0; height: auto; }
+.card[data-home-card='true'] .title { font-size: var(--font-size-13); font-weight: 570; }
+.card[data-home-card='true'] .meta { grid-column: 4; }
+.card[data-home-card='true'] .countdown { gap: 0; font-size: var(--font-size-12); }
+.card[data-home-card='true'] .countdownLabel { display: none; }
+.card[data-home-card='true'] .endpoints { position: static; grid-column: 2; font-size: var(--font-size-11); }
+.card[data-home-card='true'] .endpoints span:first-child { display: none; }
+.card[data-home-card='true'][data-period-phase='scheduled'] .endpoints span:first-child { display: inline; }
+.card[data-home-card='true'][data-period-phase='scheduled'] .endpoints span:last-child { display: none; }
+.card[data-home-card='true'] .track { position: relative; top: auto; right: auto; bottom: auto; left: auto; grid-column: 3; width: 74px; height: 4px; }
+.card[data-home-card='true'] .track[aria-label='시작 예정'] { visibility: hidden; }
+.card[data-home-card='true'] .cardAction { z-index: 3; }
+.card[data-home-card='true'] .heading,
+.card[data-home-card='true'] .endpoints,
+.card[data-home-card='true'] .track { z-index: 2; }
+.homeRow { position: relative; z-index: 2; display: grid; min-width: 0; width: 100%; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(132px, auto) 74px minmax(40px, auto); align-items: center; gap: 13px; pointer-events: none; }
+.homeTitle { overflow: hidden; min-width: 0; margin: 0; color: var(--color-foreground); font-size: var(--font-size-13); font-weight: 570; text-overflow: ellipsis; white-space: nowrap; }
+.homeEndpoint { overflow: hidden; color: var(--color-muted); font-size: var(--font-size-11); font-variant-numeric: var(--font-numeric-style); text-overflow: ellipsis; text-align: right; white-space: nowrap; }
+.homeTrack { display: block; width: 74px; height: 4px; overflow: hidden; border-radius: var(--radius-pill); background: var(--color-border); }
+.homeFill { display: block; width: 100%; height: 100%; border-radius: inherit; background: var(--color-phase-active); transform-origin: left center; }
+.homeMetric { min-width: 40px; color: var(--color-accent); font-size: var(--font-size-12); font-variant-numeric: var(--font-numeric-style); text-align: right; white-space: nowrap; }
+.metric_start { color: var(--color-phase-start-soon); }
+.metric_end { color: var(--color-phase-end-soon); }
+
 .countdown[data-countdown-urgency='start'] {
   color: var(--color-phase-start-soon);
 }

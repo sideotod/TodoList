@@ -16,26 +16,28 @@ Todo combines a calendar with personal task and D-day planning. It helps student
 
 ## Positioning
 
-Todo presents timed calendar events and date-bound periods as progress cards and sortable D-day items, while keeping daily to-do lists focused on tasks. A new schedule belongs to the calendar and D-day views; it is not a daily task.
+Todo presents daily tasks beside near deadlines and starts, with a selected-day agenda and mini calendar in the same workspace. Progress cards track deadline, start, and interval records, while Calendar provides day, week, month, and year views. A timed schedule remains distinct from a daily task.
 
 ## Operating Context
 
-Users plan by month and week, review a selected day's tasks, and track upcoming or completed academic periods and events. The product is Korean-first. The desktop and iOS experiences share schedules.
+Users plan by selected date, review daily tasks and events, and track upcoming or completed academic periods. The product is Korean-first and macOS desktop-first; the desktop and iOS experiences share schedules.
 
 ## Capabilities and Constraints
 
 - Create and edit daily tasks, timed calendar events, and period records with optional checklists.
-- The home monthly grid shows task activity only. View schedules in the weekly calendar, home progress cards, D-day sorting, and the compact event-only agenda below daily tasks.
-- Events appear in progress cards and D-day sorting, not in the daily task list.
+- The Today workspace keeps the nearest deadlines/starts and daily tasks in its main column, with a mini month and selected-day events in the side column.
+- Events appear in Calendar, the selected-day agenda, and optionally Progress; they do not become daily tasks.
+- Progress separates date countdown, meaningful interval elapsed time, and linked task completion.
+- Calendar supports day, week, month, and year views with independent task, event, and period visibility.
 - Keep existing period records available when simplifying new-item creation flows.
-- Calendar settings include week start, time display, and time zone. The interface uses one fixed Apple Blue accent; task category colors remain independently selectable.
+- Calendar settings include week start, time display, time zone, visible hours, and item layers. The interface uses the quiet sage palette in the v4 reference with selectable accents; task category colors remain independently selectable.
 - Use existing item persistence and synchronization flows; do not introduce a separate event storage path.
 
 ## Brand Commitments
 
 - Keep the product name Todo.
-- Use a restrained Apple-inspired system font stack, neutral surfaces, and one fixed interface accent: Apple Blue `#0066CC`.
-- Keep category colors attached to their task and schedule data; changing the interface accent must not recolor saved categories.
+- Use the supplied v4 desktop visual language: a compact macOS title bar/sidebar, restrained system typography, light neutral surfaces, and a muted sage selected accent.
+- Keep selectable interface accent colors separate from saved task and schedule category colors.
 - The interface and terminology remain Korean-first.
 
 ## Evidence on Hand

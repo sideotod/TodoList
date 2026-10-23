@@ -25,12 +25,14 @@ type MonthTaskGridProps = {
   onSelectDate: (date: string) => void;
   onChangeMonth: (month: string) => void;
   showHeading?: boolean;
+  compact?: boolean;
   categories?: readonly TaskCategory[];
+  weekStartsOn?: 0 | 1;
 };
 
-export function MonthTaskGrid({ items, month, selectedDate, onSelectDate, onChangeMonth, showHeading = true, categories = [DEFAULT_TASK_CATEGORY] }: MonthTaskGridProps) {
-  const cells = getMonthCells(month);
-  const weekdays = getWeekdayLabels();
+export function MonthTaskGrid({ items, month, selectedDate, onSelectDate, onChangeMonth, showHeading = true, compact = false, categories = [DEFAULT_TASK_CATEGORY], weekStartsOn = 0 }: MonthTaskGridProps) {
+  const cells = getMonthCells(month, weekStartsOn);
+  const weekdays = getWeekdayLabels(weekStartsOn);
 
   function chooseDate(date: string) {
     onSelectDate(date);
@@ -46,12 +48,13 @@ export function MonthTaskGrid({ items, month, selectedDate, onSelectDate, onChan
 
   function handleDateKey(event: KeyboardEvent<HTMLButtonElement>, date: string) {
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const weekOffset = (weekday - weekStartsOn + 7) % 7;
     const nextDate = event.key === 'ArrowLeft' ? shiftDate(date, -1)
       : event.key === 'ArrowRight' ? shiftDate(date, 1)
       : event.key === 'ArrowUp' ? shiftDate(date, -7)
       : event.key === 'ArrowDown' ? shiftDate(date, 7)
-      : event.key === 'Home' ? shiftDate(date, -weekday)
-      : event.key === 'End' ? shiftDate(date, 6 - weekday)
+      : event.key === 'Home' ? shiftDate(date, -weekOffset)
+      : event.key === 'End' ? shiftDate(date, 6 - weekOffset)
       : null;
     if (nextDate) {
       event.preventDefault();
@@ -61,7 +64,7 @@ export function MonthTaskGrid({ items, month, selectedDate, onSelectDate, onChan
   }
 
   return (
-    <section className={styles.calendar} aria-label="월간 할 일">
+    <section className={`${styles.calendar}${compact ? ` ${styles.compactCalendar}` : ''}`} aria-label="월간 할 일">
       {showHeading && (
         <div className={styles.heading}>
           <h2>{getMonthHeading(month)}</h2>
@@ -77,9 +80,11 @@ export function MonthTaskGrid({ items, month, selectedDate, onSelectDate, onChan
       )}
       <div className={styles.days} role="grid" aria-label={`${getMonthHeading(month)} 날짜`}>
         <div className={styles.weekdays} role="row">
-          {weekdays.map((day, index) => (
-            <span className={index === 0 ? styles.sunday : index === 6 ? styles.saturday : ''} role="columnheader" key={day}>{day}</span>
-          ))}
+          {weekdays.map((day, index) => {
+            const weekdayIndex = (weekStartsOn + index) % 7;
+            const dayTone = weekdayIndex === 0 ? styles.sunday : weekdayIndex === 6 ? styles.saturday : '';
+            return <span className={dayTone} role="columnheader" key={day}>{day}</span>;
+          })}
         </div>
         {Array.from({ length: cells.length / 7 }, (_, rowIndex) => (
           <div className={styles.week} key={`week-${rowIndex}`} role="row">

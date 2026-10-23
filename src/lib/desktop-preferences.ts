@@ -12,14 +12,16 @@ export type DesktopPreferences = {
   timeZone: string;
   colorTheme: ColorThemeId;
   taskCategories: TaskCategory[];
+  calendarVisibility: { tasks: boolean; events: boolean; progress: boolean };
 };
 
 export const DEFAULT_DESKTOP_PREFERENCES: DesktopPreferences = {
-  weekStartsOn: 0,
+  weekStartsOn: 1,
   timeFormat: '24h',
   timeZone: 'Asia/Seoul',
-  colorTheme: 'apple-blue',
+  colorTheme: 'sage',
   taskCategories: [],
+  calendarVisibility: { tasks: true, events: true, progress: true },
 };
 
 const STORAGE_KEY = 'todolist:desktop-preferences:v1';
@@ -48,6 +50,11 @@ export function readDesktopPreferences(snapshot = getSnapshot()): DesktopPrefere
       timeZone,
       colorTheme,
       taskCategories: normalizeTaskCategories(preferences.taskCategories),
+      calendarVisibility: isRecord(preferences.calendarVisibility) ? {
+        tasks: typeof preferences.calendarVisibility.tasks === 'boolean' ? preferences.calendarVisibility.tasks : true,
+        events: typeof preferences.calendarVisibility.events === 'boolean' ? preferences.calendarVisibility.events : true,
+        progress: typeof preferences.calendarVisibility.progress === 'boolean' ? preferences.calendarVisibility.progress : true,
+      } : DEFAULT_DESKTOP_PREFERENCES.calendarVisibility,
     };
   } catch {
     return DEFAULT_DESKTOP_PREFERENCES;
@@ -63,6 +70,9 @@ export function saveDesktopPreferences(preferences: DesktopPreferences): void {
   }
   if (!Array.isArray(preferences.taskCategories) || normalizeTaskCategories(preferences.taskCategories).length !== preferences.taskCategories.length) {
     throw new RangeError('카테고리 이름과 색상을 확인해 주세요.');
+  }
+  if (!isRecord(preferences.calendarVisibility) || ['tasks', 'events', 'progress'].some((key) => typeof preferences.calendarVisibility[key as keyof DesktopPreferences['calendarVisibility']] !== 'boolean')) {
+    throw new RangeError('캘린더 표시 항목 설정을 확인해 주세요.');
   }
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, preferences }));
   window.dispatchEvent(new Event(CHANGE_EVENT));
