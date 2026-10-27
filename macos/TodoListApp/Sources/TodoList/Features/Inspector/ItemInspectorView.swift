@@ -32,11 +32,12 @@ struct ItemInspectorView: View {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.45, green: 0.54, blue: 0.47))
+                        .foregroundStyle(Theme.secondaryText)
                         .frame(width: 26, height: 26)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
                 .accessibilityLabel("상세 닫기")
             }
             .padding(.horizontal, 28)
@@ -45,30 +46,19 @@ struct ItemInspectorView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(categoryTypeLabel)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
-                        .padding(.bottom, 6)
                     Text(item.title)
                         .font(.system(size: 24, weight: .semibold))
                         .tracking(-0.5)
                         .lineLimit(3)
                         .textSelection(.enabled)
                         .padding(.bottom, 5)
-                    if let notes = item.notes, !notes.isEmpty {
-                        Text(notes)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color(red: 0.55, green: 0.61, blue: 0.56))
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.bottom, 13)
-                    } else {
-                        Spacer().frame(height: 9)
-                    }
+                    Spacer().frame(height: 9)
 
-                    countdownCard
-                        .padding(.bottom, 19)
-                    sectionDivider
+                    if showsCountdownCard {
+                        countdownCard
+                            .padding(.bottom, 19)
+                        sectionDivider
+                    }
                     timeInformation
                         .padding(.vertical, 19)
                     sectionDivider
@@ -102,16 +92,15 @@ struct ItemInspectorView: View {
                 .padding(.top, 28)
                 .padding(.bottom, 52)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.automatic)
 
             Divider()
             HStack(spacing: 8) {
                 Button("편집", action: onEdit)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(FormActionButtonStyle())
                 if item.completion != nil {
                     Button(item.completion == .completed ? "다시 열기" : "완료", action: onComplete)
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.accent)
+                        .buttonStyle(FormActionButtonStyle(primary: true))
                 }
                 Spacer(minLength: 2)
                 Menu {
@@ -126,15 +115,16 @@ struct ItemInspectorView: View {
                         .contentShape(Rectangle())
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .accessibilityLabel("더 보기")
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
         .frame(minWidth: 280, idealWidth: 420, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.white)
+        .background(Theme.card)
         .overlay(alignment: .leading) { Rectangle().fill(Theme.separator).frame(width: 1) }
-        .task { await reloadLinkedItems() }
+        .task(id: item.id) { await reloadLinkedItems() }
         .confirmationDialog("이 항목을 삭제할까요?", isPresented: $confirmsDelete, titleVisibility: .visible) {
             Button("삭제", role: .destructive, action: onDelete)
             Button("취소", role: .cancel) {}
@@ -144,6 +134,17 @@ struct ItemInspectorView: View {
     private var categoryTypeLabel: String {
         let category = item.category?.isEmpty == false ? item.category! : "내 일정"
         return "\(category) · \(typeLabel)"
+    }
+
+    private var showsCountdownCard: Bool {
+        switch item.kind {
+        case .task:
+            false
+        case .event:
+            false
+        case .deadline, .window:
+            ProgressProjection.targetDate(for: item) != nil
+        }
     }
 
     private var typeLabel: String {
@@ -157,15 +158,17 @@ struct ItemInspectorView: View {
 
     private var countdownCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(ProgressProjection.compactCountdownLabel(for: item, now: .now))
-                    .font(.system(size: 31, weight: .semibold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(Theme.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(countdownDescription)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color(red: 0.58, green: 0.64, blue: 0.59))
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(ProgressProjection.compactCountdownLabel(for: item, now: context.date))
+                        .font(.system(size: 31, weight: .semibold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(ProgressProjection.isCountdownUrgent(for: item, now: context.date) ? Color.red : Theme.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(countdownDescription(now: context.date))
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.secondaryText)
+                }
             }
             if let fraction = metrics.elapsedFraction {
                 ProgressView(value: fraction)
@@ -177,7 +180,7 @@ struct ItemInspectorView: View {
                     Text("\(100 - Int((fraction * 100).rounded()))% 남음")
                 }
                 .font(.system(size: 11))
-                .foregroundStyle(Color(red: 0.57, green: 0.64, blue: 0.58))
+                .foregroundStyle(Theme.secondaryText)
             } else {
                 Rectangle().fill(Theme.accent.opacity(0.18)).frame(height: 2)
             }
@@ -190,13 +193,9 @@ struct ItemInspectorView: View {
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(Theme.separator.opacity(0.65), lineWidth: 1))
     }
 
-    private var countdownDescription: String {
-        switch item.kind {
-        case .task: "할 일까지 남은 시간"
-        case .event: "일정까지 남은 시간"
-        case .deadline: item.focus == .start ? "시작까지 남은 시간" : "마감까지 남은 시간"
-        case .window: "종료까지 남은 시간"
-        }
+    private func countdownDescription(now: Date) -> String {
+        guard let label = ProgressProjection.countdownReferenceLabel(for: item, now: now) else { return "날짜 미정" }
+        return label == "종료 후" ? label : "\(label) 남은 시간"
     }
 
     private var timeInformation: some View {
@@ -234,7 +233,7 @@ struct ItemInspectorView: View {
     private var checklistSection: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
-                sectionTitle(item.kind == .task ? "관련 작업" : "연결된 할 일")
+                sectionTitle(item.kind == .task ? "관련 작업" : "준비 작업")
                 Spacer()
                 Text("\(metrics.completedTasks) / \(metrics.totalTasks) 완료")
                     .font(.system(size: 12, weight: .medium))
@@ -255,9 +254,11 @@ struct ItemInspectorView: View {
                                 .strikethrough(snapshot.completed, color: Color.secondary.opacity(0.6))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             if row.linkedTaskId != nil {
-                                Text("연결된 할 일")
+                                Image(systemName: "link")
                                     .font(.system(size: 10))
-                                    .foregroundStyle(Color.secondary.opacity(0.8))
+                                    .foregroundStyle(.secondary)
+                                    .help("할 일과 완료 상태가 연결됩니다")
+                                    .accessibilityLabel("연결된 할 일")
                             }
                         }
                     }
@@ -266,10 +267,6 @@ struct ItemInspectorView: View {
                 .buttonStyle(.plain)
                 .padding(.vertical, 5)
             }
-            Text("완료 상태는 연결된 할 일과 함께 반영됩니다.")
-                .font(.system(size: 10))
-                .foregroundStyle(Color.secondary)
-                .padding(.top, 3)
         }
     }
 
@@ -278,7 +275,7 @@ struct ItemInspectorView: View {
             sectionTitle("메모")
             Text(notes)
                 .font(.system(size: 12))
-                .foregroundStyle(Color(red: 0.47, green: 0.54, blue: 0.48))
+                .foregroundStyle(Theme.primaryText)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
@@ -294,16 +291,16 @@ struct ItemInspectorView: View {
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color(red: 0.38, green: 0.47, blue: 0.39))
+            .foregroundStyle(Theme.secondaryText)
             .padding(.bottom, 15)
     }
 
     private func detailRow(_ title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(title).foregroundStyle(Color(red: 0.62, green: 0.67, blue: 0.63))
+            Text(title).foregroundStyle(Theme.secondaryText)
             Spacer(minLength: 10)
             Text(value)
-                .foregroundStyle(Color(red: 0.25, green: 0.29, blue: 0.26))
+                .foregroundStyle(Theme.primaryText)
                 .multilineTextAlignment(.trailing)
                 .lineLimit(2)
         }

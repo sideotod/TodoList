@@ -28,9 +28,12 @@ final class SupabaseAuthService {
     private(set) var isConfigured = false
     private(set) var configurationValues: (url: String, publishableKey: String) = ("", "")
     @ObservationIgnored private let configurationStore: SupabaseConfigurationStore
-    @ObservationIgnored private var client: SupabaseClient?
+    @ObservationIgnored private(set) var client: SupabaseClient?
     @ObservationIgnored private var authEventsTask: Task<Void, Never>?
     @ObservationIgnored private var projectHost: String?
+    @ObservationIgnored private(set) var projectIdentifier: String?
+    @ObservationIgnored private(set) var configuration: SupabaseConfiguration?
+    @ObservationIgnored var onAccountChanged: (@MainActor () -> Void)?
 
     init(configurationStore: SupabaseConfigurationStore = SupabaseConfigurationStore()) {
         self.configurationStore = configurationStore
@@ -58,13 +61,13 @@ final class SupabaseAuthService {
             if let session = try? await client.auth.session {
                 accept(session)
             } else if let host = projectHost {
-                state = .signedOut(projectHost: host)
+                setState(.signedOut(projectHost: host))
             }
         } catch SupabaseConfigurationError.missing {
-            state = .localOnly
+            setState(.localOnly)
             isConfigured = false
         } catch {
-            state = .error(error.localizedDescription)
+            setState(.error(error.localizedDescription))
         }
     }
 
@@ -76,7 +79,8 @@ final class SupabaseAuthService {
         client = nil
         try configureClient()
         projectHost = configuration.url.host
-        if let host = projectHost { state = .signedOut(projectHost: host) }
+        if let client { observeAuthEvents(from: client) }
+        if let host = projectHost { setState(.signedOut(projectHost: host)) }
     }
 
     func signInWithGoogle() async throws {
@@ -90,7 +94,7 @@ final class SupabaseAuthService {
             )
             accept(session)
         } catch {
-            state = .error(Self.authErrorDescription(error))
+            setState(.error(Self.authErrorDescription(error)))
             throw error
         }
     }
@@ -100,7 +104,7 @@ final class SupabaseAuthService {
         do {
             accept(try await client.auth.session(from: url))
         } catch {
-            state = .error(Self.authErrorDescription(error))
+            setState(.error(Self.authErrorDescription(error)))
         }
     }
 
@@ -110,16 +114,18 @@ final class SupabaseAuthService {
         defer { isBusy = false }
         do {
             try await client.auth.signOut()
-            if let host = projectHost { state = .signedOut(projectHost: host) }
+            if let host = projectHost { setState(.signedOut(projectHost: host)) }
         } catch {
-            state = .error(Self.authErrorDescription(error))
+            setState(.error(Self.authErrorDescription(error)))
             throw error
         }
     }
 
     private func configureClient() throws {
         let configuration = try SupabaseConfiguration.load(defaults: .standard)
+        self.configuration = configuration
         projectHost = configuration.url.host
+        projectIdentifier = configuration.url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         client = SupabaseClient(
             supabaseURL: configuration.url,
             supabaseKey: configuration.publishableKey,
@@ -139,14 +145,20 @@ final class SupabaseAuthService {
                 if let session {
                     self?.accept(session)
                 } else if let host {
-                    self?.state = .signedOut(projectHost: host)
+                    self?.setState(.signedOut(projectHost: host))
                 }
             }
         }
     }
 
     private func accept(_ session: Session) {
-        state = .signedIn(userID: session.user.id.uuidString, email: session.user.email)
+        setState(.signedIn(userID: session.user.id.uuidString, email: session.user.email))
+    }
+
+    private func setState(_ newState: SupabaseAccountState) {
+        guard state != newState else { return }
+        state = newState
+        onAccountChanged?()
     }
 
     private static func authErrorDescription(_ error: Error) -> String {

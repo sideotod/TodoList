@@ -16,13 +16,14 @@ enum CalendarProjection {
         items: [CalendarItem],
         layers: CalendarLayerPreferences,
         timeZone: String,
-        taskOrder: TaskOrderPreference? = nil
+        taskOrder: TaskOrderPreference? = nil,
+        taskMonth: String? = nil
     ) -> [CalendarItem] {
         var result: [CalendarItem] = []
         if layers.events {
             result += TodayProjection.events(on: date, items: items)
         }
-        if layers.tasks {
+        if layers.tasks && (taskMonth == nil || String(date.prefix(7)) == taskMonth) {
             result += TodayProjection.tasks(
                 on: date,
                 items: items.filter { $0.kind == .task && !isUnscheduled($0) },
@@ -34,6 +35,9 @@ enum CalendarProjection {
         if layers.progress {
             result += items.filter { item in
                 guard (item.kind == .deadline || item.kind == .window), item.deletedAt == nil else { return false }
+                if item.kind == .window, let range = eventDateRange(item) {
+                    return date >= range.start && date <= range.end
+                }
                 return importantDates(for: item, timeZone: timeZone).contains(date)
             }
         }
@@ -43,6 +47,56 @@ enum CalendarProjection {
             if left == right { return $0.title.localizedStandardCompare($1.title) == .orderedAscending }
             return left < right
         }
+    }
+
+    static func visibleItemDates(
+        in dates: [String],
+        items: [CalendarItem],
+        layers: CalendarLayerPreferences,
+        timeZone: String
+    ) -> Set<String> {
+        let requestedDates = Set(dates)
+        guard !requestedDates.isEmpty else { return [] }
+
+        var visibleDates = Set<String>()
+        var recurringEvents: [CalendarItem] = []
+        for item in items where item.deletedAt == nil {
+            switch item.kind {
+            case .event:
+                guard layers.events else { continue }
+                if item.recurrence != nil {
+                    recurringEvents.append(item)
+                } else if let range = eventDateRange(item) {
+                    for date in dates where date >= range.start && date <= range.end {
+                        visibleDates.insert(date)
+                    }
+                }
+            case .task:
+                guard layers.tasks else { continue }
+                let date: String?
+                switch item.timing {
+                case let .date(_, dueDate, _): date = dueDate
+                case let .time(_, dueAt, zone): date = dueAt.flatMap { TodayProjection.localDate($0, zone: zone) }
+                case .unscheduled: date = nil
+                }
+                if let date, requestedDates.contains(date) { visibleDates.insert(date) }
+            case .window:
+                guard layers.progress, let range = eventDateRange(item) else { continue }
+                for date in dates where date >= range.start && date <= range.end {
+                    visibleDates.insert(date)
+                }
+            case .deadline:
+                guard layers.progress else { continue }
+                for date in importantDates(for: item, timeZone: timeZone) where requestedDates.contains(date) {
+                    visibleDates.insert(date)
+                }
+            }
+        }
+        if !recurringEvents.isEmpty {
+            let index = CalendarItemIndex(items: recurringEvents, layers: CalendarLayerPreferences(tasks: false, events: true, progress: false), timeZone: timeZone)
+            visibleDates.formUnion(index.visibleDates(in: dates.filter { !visibleDates.contains($0) }))
+        }
+        return visibleDates
     }
 
     static func overlapLanes(for items: [CalendarItem]) -> [CalendarLane] {
@@ -80,21 +134,24 @@ enum CalendarProjection {
         return output
     }
 
-    static func overlapLanes(for items: [CalendarItem], on date: String, timeZone: String) -> [CalendarLane] {
+    static func overlapLanes(for items: [CalendarItem], on date: String, timeZone: String, startHour: Int = 0, endHour: Int = 24) -> [CalendarLane] {
         guard let dayStart = TodayProjection.parseDate(date, timeZone: timeZone) else { return [] }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: timeZone) ?? .current
         guard let nextDay = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
+        guard let visibleStart = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: dayStart),
+              let visibleEnd = endHour == 24 ? nextDay : calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: dayStart),
+              visibleEnd > visibleStart else { return [] }
 
-        let clipped = items.compactMap { item -> CalendarItem? in
+        let clipped = items.compactMap { item -> (CalendarItem, CalendarItem)? in
             guard case let .time(startAt, endAt, zone) = item.timing else { return nil }
             let suppliedStart = startAt.flatMap(ISO8601DateFormatter.todoListDate(from:))
             let suppliedEnd = endAt.flatMap(ISO8601DateFormatter.todoListDate(from:))
             let start = suppliedStart ?? suppliedEnd?.addingTimeInterval(-30 * 60)
             guard let start else { return nil }
             let end = suppliedEnd ?? start.addingTimeInterval(30 * 60)
-            let clippedStart = max(start, dayStart)
-            let clippedEnd = min(end, nextDay)
+            let clippedStart = max(start, visibleStart)
+            let clippedEnd = min(end, visibleEnd)
             guard clippedEnd > clippedStart else { return nil }
             var copy = item
             copy.timing = .time(
@@ -102,12 +159,17 @@ enum CalendarProjection {
                 endAt: ISO8601DateFormatter.todoListTimestamp(for: clippedEnd),
                 timeZone: zone
             )
-            return copy
+            return (copy, item)
         }
-        return overlapLanes(for: clipped)
+        return overlapLanes(for: clipped.map(\.0)).map { lane in
+            var result = lane
+            // Clipping changes layout only; labels and actions retain the original timing.
+            if let original = clipped.first(where: { $0.0.id == lane.item.id && $0.0.timing == lane.item.timing })?.1 { result.item = original }
+            return result
+        }
     }
 
-    static func dates(for mode: CalendarViewMode, around date: String, timeZone: String, weekStartsOn: Int = 1) -> [String] {
+    static func dates(for mode: CalendarViewMode, around date: String, timeZone: String, weekStartsOn: Int = 0) -> [String] {
         guard let parsed = TodayProjection.parseDate(date, timeZone: timeZone) else { return [date] }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: timeZone) ?? .current
@@ -155,12 +217,7 @@ enum CalendarProjection {
     }
 
     static func dateString(_ date: Date, timeZone: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: timeZone) ?? .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        TodayProjection.dateString(date, timeZone: timeZone)
     }
 
     static func dateTime(on date: String, hour: Int, minute: Int, timeZone: String) -> Date? {
@@ -175,7 +232,23 @@ enum CalendarProjection {
         return false
     }
 
-    private static func importantDates(for item: CalendarItem, timeZone: String) -> [String] {
+    static func eventDateRange(_ item: CalendarItem) -> (start: String, end: String)? {
+        switch item.timing {
+        case .unscheduled:
+            return nil
+        case let .date(startDate, endDate, _):
+            return (startDate ?? endDate, endDate)
+        case let .time(startAt, endAt, zone):
+            guard let startAt, let startDate = TodayProjection.localDate(startAt, zone: zone) else { return nil }
+            guard let endAt else { return (startDate, startDate) }
+            guard let end = ISO8601DateFormatter.todoListDate(from: endAt) else { return (startDate, startDate) }
+            let lastIncluded = end.addingTimeInterval(-0.001)
+            let endDate = TodayProjection.localDate(ISO8601DateFormatter.todoListTimestamp(for: lastIncluded), zone: zone) ?? startDate
+            return (startDate, endDate)
+        }
+    }
+
+    static func importantDates(for item: CalendarItem, timeZone: String) -> [String] {
         switch item.timing {
         case .unscheduled:
             return []
@@ -196,7 +269,7 @@ enum CalendarProjection {
         }
     }
 
-    private static func sortKey(_ item: CalendarItem, timeZone: String) -> String {
+    static func sortKey(_ item: CalendarItem, timeZone: String) -> String {
         switch item.timing {
         case .unscheduled: "9999-99-99"
         case let .date(startDate, endDate, _): startDate ?? endDate

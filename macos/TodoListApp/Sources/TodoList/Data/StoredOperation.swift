@@ -83,18 +83,42 @@ struct PendingMutationDraft: Sendable {
 
 extension ISO8601DateFormatter {
     static func todoListTimestamp(for date: Date = Date()) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        return formatter.string(from: date)
+        TodoListISO8601Formatters.shared.timestamp(for: date)
     }
 
     static func todoListDate(from value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        if let fractional = formatter.date(from: value) { return fractional }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
+        TodoListISO8601Formatters.shared.date(from: value)
+    }
+}
+
+private final class TodoListISO8601Formatters: @unchecked Sendable {
+    static let shared = TodoListISO8601Formatters()
+
+    private let lock = NSLock()
+    private let fractional: ISO8601DateFormatter
+    private let standard: ISO8601DateFormatter
+
+    private init() {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        fractional.timeZone = TimeZone(secondsFromGMT: 0)
+        self.fractional = fractional
+
+        let standard = ISO8601DateFormatter()
+        standard.formatOptions = [.withInternetDateTime]
+        standard.timeZone = TimeZone(secondsFromGMT: 0)
+        self.standard = standard
+    }
+
+    func timestamp(for date: Date) -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return fractional.string(from: date)
+    }
+
+    func date(from value: String) -> Date? {
+        lock.lock()
+        defer { lock.unlock() }
+        return fractional.date(from: value) ?? standard.date(from: value)
     }
 }

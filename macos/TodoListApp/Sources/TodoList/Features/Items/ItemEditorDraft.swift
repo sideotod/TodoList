@@ -4,6 +4,7 @@ struct ItemEditorContext: Equatable, Sendable {
     var dateOnly: String?
     var startInstant: String?
     var timeZone: String
+    var weekStartsOn: Int = 0
 }
 
 enum ItemTimingMode: String, CaseIterable, Identifiable {
@@ -23,6 +24,7 @@ enum ItemTimingMode: String, CaseIterable, Identifiable {
 }
 
 struct ItemEditorDraft {
+    private let initialDate: String
     var id: String?
     var kind: ItemKind
     var title: String
@@ -58,6 +60,7 @@ struct ItemEditorDraft {
     var importSource: ImportSource?
 
     init(item: CalendarItem?, defaultKind: ItemKind, context: ItemEditorContext) {
+        initialDate = context.dateOnly ?? Self.today(in: context.timeZone)
         id = item?.id
         kind = item?.kind ?? defaultKind
         title = item?.title ?? ""
@@ -65,10 +68,11 @@ struct ItemEditorDraft {
         categoryColor = item?.categoryColor ?? "teal"
         notes = item?.notes ?? ""
         sourceUrl = item?.sourceUrl ?? ""
-        timeZone = switch item?.timing {
-        case let .date(_, _, zone), let .time(_, _, zone): zone
-        case .unscheduled, nil: context.timeZone
-        }
+        timeZone =
+            switch item?.timing {
+            case .date(_, _, let zone), .time(_, _, let zone): zone
+            case .unscheduled, nil: context.timeZone
+            }
         completion = item?.completion ?? .pending
         checklist = item?.checklist ?? []
         startCountdownEnabled = item?.startCountdown?.enabled ?? true
@@ -89,7 +93,7 @@ struct ItemEditorDraft {
         importSource = item?.importSource
 
         switch item?.timing {
-        case let .date(startDate, endDate, _):
+        case .date(let startDate, let endDate, _):
             timingMode = .date
             self.startDate = startDate ?? ""
             self.endDate = endDate
@@ -97,7 +101,7 @@ struct ItemEditorDraft {
             endAt = ""
             hasPeriodStart = startDate != nil
             hasPeriodEnd = true
-        case let .time(startAt, endAt, _):
+        case .time(let startAt, let endAt, _):
             timingMode = .time
             self.startAt = startAt ?? ""
             self.endAt = endAt ?? ""
@@ -126,11 +130,17 @@ struct ItemEditorDraft {
                 timingMode = .time
                 hasPeriodStart = defaultKind != .task && defaultKind != .deadline
                 if defaultKind == .task { hasPeriodStart = false }
+                if defaultKind == .task || defaultKind == .deadline {
+                    endAt = context.startInstant ?? ""
+                    startAt = ""
+                    hasPeriodEnd = true
+                }
             }
         }
         if recurrenceDays.isEmpty, let date = context.dateOnly {
             recurrenceDays = [Self.weekday(date, timeZone: context.timeZone) ?? 1]
         }
+        ensureTimingDefaults()
     }
 
     mutating func changeKind(to newKind: ItemKind) {
@@ -148,6 +158,69 @@ struct ItemEditorDraft {
             if timingMode == .unscheduled { timingMode = .date }
             hasPeriodStart = true
         }
+        ensureTimingDefaults()
+    }
+
+    mutating func changeTimingMode(to mode: ItemTimingMode) {
+        let previous = timingMode
+        if previous == .time && mode == .date {
+            startDate = TodayProjection.localDate(startAt, zone: timeZone) ?? endDate
+            if (kind == .event || kind == .window) && !hasPeriodEnd {
+                endDate = startDate
+            } else if kind == .event || kind == .window,
+                let end = ISO8601DateFormatter.todoListDate(from: endAt)
+            {
+                // Timed ranges exclude their end; date ranges include their final day.
+                endDate = TodayProjection.localDate(ISO8601DateFormatter.todoListTimestamp(for: end.addingTimeInterval(-0.001)), zone: timeZone) ?? startDate
+            } else {
+                endDate = TodayProjection.localDate(endAt, zone: timeZone) ?? startDate
+            }
+        } else if previous != .time && mode == .time {
+            let firstDate = TodayProjection.parseDate(startDate, timeZone: timeZone) == nil ? endDate : startDate
+            startAt = instant(on: firstDate, preserving: startAt, defaultHour: kind == .deadline ? 8 : 9)
+            endAt = instant(on: endDate, preserving: endAt, defaultHour: kind == .event || kind == .window ? 10 : 9)
+        }
+        timingMode = mode
+        ensureTimingDefaults()
+    }
+
+    /// Seed the exact values rendered by DatePicker; never leave display-only fallbacks.
+    mutating func ensureTimingDefaults() {
+        guard timingMode != .unscheduled else { return }
+        if TodayProjection.parseDate(endDate, timeZone: timeZone) == nil {
+            endDate = TodayProjection.localDate(endAt, zone: timeZone) ?? TodayProjection.localDate(startAt, zone: timeZone) ?? initialDate
+        }
+        if TodayProjection.parseDate(startDate, timeZone: timeZone) == nil {
+            startDate = TodayProjection.localDate(startAt, zone: timeZone) ?? endDate
+        }
+        guard timingMode == .time else { return }
+        if ISO8601DateFormatter.todoListDate(from: startAt) == nil {
+            if let end = ISO8601DateFormatter.todoListDate(from: endAt) {
+                startAt = ISO8601DateFormatter.todoListTimestamp(for: end.addingTimeInterval(-3600))
+            } else {
+                startAt = instant(on: startDate, preserving: "", defaultHour: kind == .deadline ? 8 : 9)
+            }
+        }
+        if ISO8601DateFormatter.todoListDate(from: endAt) == nil {
+            if kind == .event || kind == .window, startDate == endDate,
+                let start = ISO8601DateFormatter.todoListDate(from: startAt)
+            {
+                endAt = ISO8601DateFormatter.todoListTimestamp(for: start.addingTimeInterval(3600))
+            } else {
+                endAt = instant(on: endDate, preserving: "", defaultHour: 9)
+            }
+        }
+    }
+
+    private func instant(on date: String, preserving value: String, defaultHour: Int) -> String {
+        guard let day = TodayProjection.parseDate(date, timeZone: timeZone) ?? TodayProjection.parseDate(initialDate, timeZone: timeZone) else { return value }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZone) ?? .current
+        let original = ISO8601DateFormatter.todoListDate(from: value)
+        let hour = original.map { calendar.component(.hour, from: $0) } ?? defaultHour
+        let minute = original.map { calendar.component(.minute, from: $0) } ?? 0
+        guard let instant = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) else { return value }
+        return ISO8601DateFormatter.todoListTimestamp(for: instant)
     }
 
     func makeItem() -> CalendarItem {
@@ -164,12 +237,14 @@ struct ItemEditorDraft {
             timing = .time(startAt: start, endAt: end, timeZone: timeZone)
         }
         let isPeriod = kind == .deadline || kind == .window
-        let hasTimingStart = switch timing {
-        case .unscheduled: false
-        case let .date(start, _, _): start != nil
-        case let .time(start, _, _): start != nil
-        }
-        let recurrence = kind == .event && isRecurring
+        let hasTimingStart =
+            switch timing {
+            case .unscheduled: false
+            case .date(let start, _, _): start != nil
+            case .time(let start, _, _): start != nil
+            }
+        let recurrence =
+            kind == .event && isRecurring
             ? WeeklyRecurrence(daysOfWeek: recurrenceDays.sorted(), untilDate: nonEmpty(recurrenceUntilDate))
             : nil
         return CalendarItem(

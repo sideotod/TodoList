@@ -5,6 +5,7 @@ protocol ItemRepository: AnyObject {
     func listItems() async throws -> [CalendarItem]
     func item(id: String) async throws -> CalendarItem?
     func upsert(_ item: CalendarItem) async throws
+    func upsert(_ item: CalendarItem, expected: CalendarItem?) async throws
     func upsertMany(_ items: [CalendarItem]) async throws
     func upsert(_ item: CalendarItem, pendingMutation: PendingMutationDraft?) async throws
     func delete(id: String) async throws
@@ -14,12 +15,14 @@ protocol ItemRepository: AnyObject {
 enum ItemRepositoryError: Error, LocalizedError {
     case corruptPayload(itemID: String, underlying: Error)
     case invalidPendingMutation
+    case staleLocal
     case persistence(underlying: Error)
 
     var errorDescription: String? {
         switch self {
         case let .corruptPayload(itemID, underlying): "Saved item \(itemID) is unreadable: \(underlying.localizedDescription)"
         case .invalidPendingMutation: "The pending account mutation is missing a valid owner or operation ID."
+        case .staleLocal: "편집하는 동안 항목이 변경되었습니다. 입력 내용은 유지되며, 최신 항목을 확인한 뒤 다시 편집해 주세요."
         case let .persistence(underlying): "Local changes could not be saved: \(underlying.localizedDescription)"
         }
     }
@@ -42,6 +45,12 @@ final class InMemoryItemRepository: ItemRepository {
     }
 
     func upsert(_ item: CalendarItem) async throws {
+        try ItemValidator.validate(item)
+        items[item.id] = item
+    }
+
+    func upsert(_ item: CalendarItem, expected: CalendarItem?) async throws {
+        guard items[item.id] == expected else { throw ItemRepositoryError.staleLocal }
         try ItemValidator.validate(item)
         items[item.id] = item
     }

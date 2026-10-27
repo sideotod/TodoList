@@ -112,22 +112,37 @@ enum TodayProjection {
     }
 
     static func parseDate(_ value: String, timeZone: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: timeZone) ?? .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: value), formatter.string(from: date) == value else { return nil }
-        return date
+        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              parts.allSatisfy({ $0.allSatisfy(\.isNumber) }),
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]),
+              (1...12).contains(month),
+              (1...31).contains(day) else { return nil }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZone) ?? .current
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
+        components.year = year
+        components.month = month
+        components.day = day
+        guard let date = calendar.date(from: components) else { return nil }
+        let normalized = calendar.dateComponents([.year, .month, .day], from: date)
+        guard normalized.year == year, normalized.month == month, normalized.day == day else { return nil }
+        return calendar.startOfDay(for: date)
     }
 
-    private static func dateString(_ date: Date, timeZone: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: timeZone) ?? .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+    static func dateString(_ date: Date, timeZone: String) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZone) ?? .current
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
     private static func targetDate(for item: CalendarItem, fallbackTimeZone: String, now: Date) -> Date? {
@@ -158,28 +173,8 @@ enum TodayProjection {
             case .unscheduled: return nil
             }
         case .window:
-            switch item.timing {
-            case let .date(startDate, endDate, zone):
-                return closestMilestone(
-                    start: startOfDay(startDate, zone: zone),
-                    end: startOfDay(endDate, zone: zone),
-                    now: now
-                )
-            case let .time(startAt, endAt, _):
-                return closestMilestone(
-                    start: startAt.flatMap(ISO8601DateFormatter.todoListDate(from:)),
-                    end: endAt.flatMap(ISO8601DateFormatter.todoListDate(from:)),
-                    now: now
-                )
-            case .unscheduled: return nil
-            }
+            return ProgressProjection.targetDate(for: item, now: now)
         }
-    }
-
-    private static func closestMilestone(start: Date?, end: Date?, now: Date) -> Date? {
-        let milestones = [start, end].compactMap { $0 }
-        return milestones.filter { $0 >= now }.min()
-            ?? milestones.max()
     }
 
     private static func startOfDay(_ value: String?, zone: String) -> Date? {

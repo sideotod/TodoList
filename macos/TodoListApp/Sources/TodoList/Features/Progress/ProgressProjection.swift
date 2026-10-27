@@ -8,21 +8,71 @@ struct ProgressMetrics: Equatable {
 }
 
 enum ProgressProjection {
-    static func compactCountdownLabel(for item: CalendarItem, now: Date) -> String {
-        guard case .time = item.timing,
-              let target = targetDate(for: item) else {
-            return countdownLabel(target: targetDate(for: item), timing: item.timing, now: now)
+    static func countdownReferenceLabel(for item: CalendarItem, now: Date) -> String? {
+        guard let target = targetDate(for: item, now: now) else { return nil }
+        let passed: Bool
+        if case let .date(_, _, zone) = item.timing {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: zone) ?? .current
+            passed = target < calendar.startOfDay(for: now)
+        } else {
+            passed = target <= now
         }
-        let remaining = target.timeIntervalSince(now)
-        guard remaining > 0, remaining < 86_400 else {
-            return countdownLabel(target: target, timing: item.timing, now: now)
+        if passed { return "종료 후" }
+        switch item.kind {
+        case .window: return isWaitingForStart(item, now: now) ? "시작까지" : "종료까지"
+        case .deadline: return item.focus == .start ? "시작까지" : "종료까지"
+        case .event: return item.countdown?.reference == .start ? "시작까지" : "종료까지"
+        case .task: return nil
         }
-        let hours = Int(remaining / 3_600)
-        if hours > 0 { return "\(hours)시간" }
-        return "\(max(1, Int(remaining / 60)))분"
     }
 
-    static func targetDate(for item: CalendarItem) -> Date? {
+    static func compactCountdownLabel(for item: CalendarItem, now: Date) -> String {
+        guard case .time = item.timing,
+              let target = targetDate(for: item, now: now) else {
+            return countdownLabel(target: targetDate(for: item, now: now), timing: item.timing, now: now)
+        }
+        let remaining = target.timeIntervalSince(now)
+        guard remaining > 0, remaining <= 86_400 else {
+            return countdownLabel(target: target, timing: item.timing, now: now)
+        }
+        if remaining > 3_600 {
+            let minutes = Int(remaining / 60)
+            return String(format: "%02d:%02d", minutes / 60, minutes % 60)
+        }
+        let seconds = min(3_600, max(1, Int(ceil(remaining))))
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+
+    static func isCountdownUrgent(for item: CalendarItem, now: Date) -> Bool {
+        guard item.completion != .completed, let target = targetDate(for: item, now: now) else { return false }
+        switch item.timing {
+        case let .date(_, _, zone):
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: zone) ?? .current
+            let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: target)).day ?? -1
+            return (0...1).contains(days)
+        case .time:
+            let remaining = target.timeIntervalSince(now)
+            return remaining > 0 && remaining <= 86_400
+        case .unscheduled:
+            return false
+        }
+    }
+
+    static func isWaitingForStart(_ item: CalendarItem, now: Date) -> Bool {
+        guard item.kind == .window else { return false }
+        switch item.timing {
+        case let .date(start, _, zone):
+            return start.flatMap { TodayProjection.parseDate($0, timeZone: zone) }.map { now < $0 } ?? false
+        case let .time(start, _, _):
+            return start.flatMap(ISO8601DateFormatter.todoListDate(from:)).map { now < $0 } ?? false
+        case .unscheduled:
+            return false
+        }
+    }
+
+    static func targetDate(for item: CalendarItem, now: Date = .now) -> Date? {
         switch item.kind {
         case .deadline:
             switch item.timing {
@@ -36,8 +86,12 @@ enum ProgressProjection {
             }
         case .window:
             switch item.timing {
-            case let .date(_, endDate, zone): return TodayProjection.parseDate(endDate, timeZone: zone)
-            case let .time(_, endAt, _): return endAt.flatMap(ISO8601DateFormatter.todoListDate(from:))
+            case let .date(startDate, endDate, zone):
+                let target = isWaitingForStart(item, now: now) ? startDate ?? endDate : endDate
+                return TodayProjection.parseDate(target, timeZone: zone)
+            case let .time(startAt, endAt, _):
+                let target = isWaitingForStart(item, now: now) ? startAt : endAt
+                return target.flatMap(ISO8601DateFormatter.todoListDate(from:))
             case .unscheduled: return nil
             }
         case .event:
@@ -55,7 +109,7 @@ enum ProgressProjection {
     }
 
     static func metrics(for item: CalendarItem, now: Date, items: [CalendarItem]) -> ProgressMetrics {
-        let target = targetDate(for: item)
+        let target = targetDate(for: item, now: now)
         return ProgressMetrics(
             countdownLabel: countdownLabel(target: target, timing: item.timing, now: now),
             elapsedFraction: elapsedFraction(item.timing, now: now),
@@ -88,12 +142,10 @@ enum ProgressProjection {
             var calendar = Calendar(identifier: .gregorian)
             calendar.timeZone = TimeZone(identifier: zone) ?? .current
             let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: today), to: calendar.startOfDay(for: target)).day ?? 0
-            return days == 0 ? "D-Day" : days > 0 ? "D-\(days)" : "D+\(-days)"
+            return days == 0 ? "D-Day" : days > 0 ? "D-\(days)" : "D+0"
         }
         if remaining <= 0 {
-            let elapsed = abs(Int(remaining))
-            let days = max(1, Int(ceil(Double(elapsed) / 86_400)))
-            return "D+\(days)"
+            return "D+0"
         }
         if remaining >= 86_400 { return "D-\(Int(ceil(remaining / 86_400)))" }
         let seconds = Int(remaining)
@@ -103,7 +155,7 @@ enum ProgressProjection {
         return String(format: "%02d:%02d:%02d", hours, minutes, remainder)
     }
 
-    private static func elapsedFraction(_ timing: ItemTiming, now: Date) -> Double? {
+    static func elapsedFraction(_ timing: ItemTiming, now: Date) -> Double? {
         let start: Date?
         let end: Date?
         switch timing {

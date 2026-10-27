@@ -24,11 +24,22 @@ struct SupabaseConfiguration: Equatable, Sendable {
             throw SupabaseConfigurationError.invalidURL
         }
         guard !cleanedKey.isEmpty, !cleanedKey.contains(where: \.isWhitespace),
-              !cleanedKey.hasPrefix("sb_secret_"), cleanedKey != "service_role" else {
+              !cleanedKey.hasPrefix("sb_secret_"), cleanedKey != "service_role",
+              !Self.isServiceRoleJWT(cleanedKey) else {
             throw SupabaseConfigurationError.invalidPublishableKey
         }
         self.url = parsed
         self.publishableKey = cleanedKey
+    }
+
+    private static func isServiceRoleJWT(_ key: String) -> Bool {
+        let parts = key.split(separator: ".")
+        guard parts.count == 3 else { return false }
+        var payload = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        guard let data = Data(base64Encoded: payload),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        return (object["role"] as? String)?.lowercased() == "service_role"
     }
 
     static func load(

@@ -68,7 +68,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     static let defaults = AppPreferences(
         version: 1,
         appearance: "system",
-        weekStartsOn: 1,
+        weekStartsOn: 0,
         timeFormat: "24h",
         timeZone: "Asia/Seoul",
         colorTheme: "sage",
@@ -88,7 +88,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     init(
         version: Int = 1,
         appearance: String = "system",
-        weekStartsOn: Int = 1,
+        weekStartsOn: Int = 0,
         timeFormat: String = "24h",
         timeZone: String = "Asia/Seoul",
         colorTheme: String = "sage",
@@ -117,7 +117,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         version = try values.decodeIfPresent(Int.self, forKey: .version) ?? 1
         appearance = try values.decodeIfPresent(String.self, forKey: .appearance) ?? "system"
-        weekStartsOn = try values.decodeIfPresent(Int.self, forKey: .weekStartsOn) ?? 1
+        weekStartsOn = try values.decodeIfPresent(Int.self, forKey: .weekStartsOn) ?? 0
         timeFormat = try values.decodeIfPresent(String.self, forKey: .timeFormat) ?? "24h"
         timeZone = try values.decodeIfPresent(String.self, forKey: .timeZone) ?? "Asia/Seoul"
         colorTheme = try values.decodeIfPresent(String.self, forKey: .colorTheme) ?? "sage"

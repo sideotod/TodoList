@@ -66,12 +66,7 @@ extension WeeklyRecurrence {
     private static func shiftDate(_ value: String, by days: Int, zone: String) -> String {
         guard let parsed = TodayProjection.parseDate(value, timeZone: zone),
               let moved = Calendar.dateByAddingDays(days, to: parsed, zone: zone) else { return value }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: zone) ?? .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: moved)
+        return TodayProjection.dateString(moved, timeZone: zone)
     }
 
     private static func shiftInstant(_ original: Date, to targetDate: Date, zone: String) -> Date? {

@@ -2,72 +2,125 @@ import SwiftUI
 
 struct AccountSettingsView: View {
     let authService: SupabaseAuthService
+    let syncManager: SupabaseSyncManager?
 
     @State private var projectURL = ""
     @State private var publishableKey = ""
     @State private var statusMessage: String?
 
+    @State private var showsConnection = false
+    @State private var selectedConflict: SyncConflict?
+    @State private var showingResolution = false
+
     var body: some View {
-        Form {
-            Section("Supabase 프로젝트") {
-                TextField("프로젝트 URL", text: $projectURL, prompt: Text("https://project-ref.supabase.co"))
-                    .textContentType(.URL)
-                SecureField("Publishable key", text: $publishableKey)
-                    .textContentType(.password)
-                Text("publishable key만 저장합니다. service_role 또는 sb_secret 키를 입력하지 마세요. 키는 이 Mac의 사용자 설정에 보관됩니다.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Button("설정 저장") { saveConfiguration() }
-                        .disabled(projectURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || publishableKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    if authService.isConfigured {
-                        Label("프로젝트 연결 정보 저장됨", systemImage: "checkmark.circle.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.accent)
+                    Text(authService.state.title).foregroundStyle(Theme.secondaryText)
+                    Spacer()
+                    accountAction
+                }
+                .frame(minHeight: 37)
+                Divider()
+                HStack {
+                    Text("기기 간 동기화")
+                    Spacer()
+                    Text(syncManager?.status ?? "미연결").foregroundStyle(Theme.secondaryText)
+                    if case .signedIn = authService.state, let syncManager {
+                        Button("다시 동기화") { syncManager.requestSync() }
+                            .disabled(syncManager.isSyncing)
                     }
                 }
-            }
-
-            Section("계정") {
-                LabeledContent("상태", value: authService.state.title)
-                switch authService.state {
-                case .signedIn:
-                    Button("Google 계정에서 로그아웃", role: .destructive) { Task { await signOut() } }
-                        .disabled(authService.isBusy)
-                case .signedOut:
-                    Button("Google로 로그인", systemImage: "person.crop.circle") { Task { await signIn() } }
-                        .disabled(!authService.isConfigured || authService.isBusy)
-                    Text("브라우저 인증 뒤 todolist://auth/callback로 돌아옵니다. Supabase Auth의 redirect allow list에 이 주소를 추가해야 합니다.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                case .localOnly:
-                    Label("Supabase가 설정되지 않아 로컬 저장으로 동작합니다.", systemImage: "externaldrive.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                case .error(let message):
-                    Text(message)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red)
-                    Button("다시 연결") { Task { await authService.restoreSession() } }
-                        .disabled(authService.isBusy)
+                .frame(minHeight: 37)
+                if let syncManager, !syncManager.conflicts.isEmpty {
+                    ForEach(syncManager.conflicts) { conflict in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("이 Mac: \(conflict.item.title)")
+                                Text(conflict.remote.deletedAt == nil ? "서버: \(conflict.remote.title)" : "서버: 삭제됨")
+                                    .foregroundStyle(Theme.secondaryText)
+                            }
+                            Spacer()
+                            Button("충돌 해결") {
+                                selectedConflict = conflict
+                                showingResolution = true
+                            }
+                        }
+                    }
+                }
+                Divider()
+                DisclosureGroup("연결 설정", isExpanded: $showsConnection) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        LabeledContent("프로젝트 URL") {
+                            TextField("https://project-ref.supabase.co", text: $projectURL)
+                                .textContentType(.URL)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 350)
+                        }
+                        LabeledContent("Publishable key") {
+                            SecureField("Publishable key", text: $publishableKey)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 350)
+                                .help("공개 publishable key만 저장할 수 있습니다.")
+                        }
+                        HStack {
+                            Spacer()
+                            Button("연결 설정 저장") { saveConfiguration() }
+                                .disabled(
+                                    projectURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                        || publishableKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+                    .padding(.top, 12)
+                }
+                if let statusMessage {
+                    Text(statusMessage).foregroundStyle(Theme.secondaryText)
                 }
             }
-
-            Section("기기 간 동기화") {
-                Text("현재 네이티브 앱은 로그인과 Keychain 세션 복원을 지원합니다. revision RPC, 오프라인 outbox, 충돌 해결 동기화는 아직 연결되지 않았으므로 이 앱의 로컬 변경은 Supabase에 업로드되지 않습니다.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.orange)
-            }
-
-            if let statusMessage {
-                Section { Text(statusMessage).font(.system(size: 11)).foregroundStyle(.secondary) }
-            }
+            .font(.system(size: 12))
+            .buttonStyle(FormActionButtonStyle())
+            .padding(16)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.separator, lineWidth: 1))
+            .padding(24)
         }
-        .formStyle(.grouped)
+        .scrollIndicators(.automatic)
         .onAppear {
             let values = authService.configurationValues
             if projectURL.isEmpty { projectURL = values.url }
             if publishableKey.isEmpty { publishableKey = values.publishableKey }
+            showsConnection = !authService.isConfigured
+        }
+        .confirmationDialog("어느 내용을 유지할까요?", isPresented: $showingResolution, titleVisibility: .visible) {
+            if let selectedConflict, let syncManager {
+                if selectedConflict.remote.deletedAt == nil {
+                    Button("이 Mac 내용으로 서버 갱신") { syncManager.resolve(selectedConflict, keepLocal: true) }
+                }
+                Button("서버 내용으로 이 Mac 갱신", role: .destructive) { syncManager.resolve(selectedConflict, keepLocal: false) }
+            }
+            Button("취소", role: .cancel) { selectedConflict = nil }
+        } message: {
+            Text("선택한 내용으로 다른 쪽을 갱신합니다. 서버에서 삭제된 항목은 서버 내용을 선택할 수 있습니다.")
+        }
+    }
+
+    @ViewBuilder
+    private var accountAction: some View {
+        switch authService.state {
+        case .signedIn:
+            Button("로그아웃", role: .destructive) { Task { await signOut() } }
+                .disabled(authService.isBusy)
+        case .signedOut:
+            Button("Google로 로그인", systemImage: "person.crop.circle") { Task { await signIn() } }
+                .disabled(!authService.isConfigured || authService.isBusy)
+        case .localOnly:
+            EmptyView()
+        case .error(let message):
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(message).foregroundStyle(.red)
+                Button("다시 연결") { Task { await authService.restoreSession() } }
+                    .disabled(authService.isBusy)
+            }
         }
     }
 

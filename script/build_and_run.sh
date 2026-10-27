@@ -3,9 +3,9 @@ set -euo pipefail
 
 MODE="${1:-run}"
 APP_ARGUMENTS=()
-if [[ "$MODE" == "--design-preview" ]]; then
+if [[ "$MODE" == "--design-preview" || "$MODE" == "--empty-preview" || "$MODE" == "--stress-preview" ]]; then
+  APP_ARGUMENTS=("$MODE")
   MODE="run"
-  APP_ARGUMENTS=(--design-preview)
 fi
 APP_NAME="TodoList"
 BUNDLE_ID="com.sideotod.TodoList"
@@ -17,8 +17,10 @@ DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
+APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+APP_ICON="$ROOT_DIR/macos/TodoListApp/Resources/AppIcon.icns"
 
 read_public_setting() {
   local setting_name="$1"
@@ -67,8 +69,9 @@ if [[ ! -x "$BUILD_BINARY" ]]; then
 fi
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_MACOS"
+mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
+cp "$APP_ICON" "$APP_RESOURCES/AppIcon.icns"
 chmod +x "$APP_BINARY"
 
 cat >"$INFO_PLIST" <<PLIST
@@ -84,6 +87,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>TodoList</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

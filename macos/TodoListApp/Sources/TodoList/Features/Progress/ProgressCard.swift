@@ -10,6 +10,10 @@ struct ProgressCard: View {
     let onDelete: () -> Void
 
     @State private var confirmsDelete = false
+    @State private var isHovered = false
+
+    private let cardHeight: CGFloat = 154
+    private let cardCornerRadius: CGFloat = 11
 
     private var metrics: ProgressMetrics {
         ProgressProjection.metrics(for: item, now: now, items: allItems)
@@ -33,107 +37,111 @@ struct ProgressCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(spacing: 5) {
-                Text(item.category ?? "내 일정")
-                Text("/")
-                Text(typeLabel)
-                Spacer(minLength: 5)
-                Text(dateRange)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            .font(.system(size: 9, weight: .medium))
-            .foregroundStyle(tint)
-
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Button(action: onSelect) {
-                    Text(item.title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                Text(ProgressProjection.compactCountdownLabel(for: item, now: now))
-                    .font(.system(size: 21, weight: .semibold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(tint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-
-            if let notes = item.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            if let fraction = metrics.elapsedFraction {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("기간 경과 \(Int((fraction * 100).rounded()))%")
-                        Spacer()
-                        Text("\(100 - Int((fraction * 100).rounded()))% 남음")
+        Button(action: onSelect) {
+            VStack(spacing: 0) {
+                tint.frame(height: 3)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 5) {
+                        Text(item.category ?? "내 일정")
+                        Text("/")
+                        Text(typeLabel)
+                        Spacer(minLength: 5)
+                        Text(dateRange)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    ProgressView(value: fraction)
-                        .tint(tint.opacity(0.8))
-                        .scaleEffect(x: 1, y: 0.72, anchor: .center)
-                        .accessibilityLabel("기간 경과율")
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(item.focus == .start ? "시작 시각까지" : "마감까지")
-                        Spacer()
-                        Text(item.focus == .start ? "정확한 시작 시각이 중요합니다" : metrics.countdownLabel)
-                    }
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    Rectangle()
-                        .fill(tint.opacity(0.16))
-                        .frame(height: 2)
-                }
-            }
-
-            HStack(spacing: 6) {
-                Image(systemName: "checklist")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(tint)
-                if metrics.totalTasks == 0 {
-                    Text("준비 작업 없음")
-                } else {
-                    Text("준비한 할 일 \(metrics.completedTasks)/\(metrics.totalTasks)")
+                    .frame(height: 14)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text(item.title)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        if item.kind != .event {
+                            TimelineView(.periodic(from: .now, by: 1)) { context in
+                                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                    if let label = ProgressProjection.countdownReferenceLabel(for: item, now: context.date) {
+                                        Text(label)
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundStyle(Theme.secondaryText)
+                                    }
+                                    Text(ProgressProjection.compactCountdownLabel(for: item, now: context.date))
+                                        .font(.system(size: 21, weight: .semibold, design: .rounded).monospacedDigit())
+                                        .foregroundStyle(ProgressProjection.isCountdownUrgent(for: item, now: context.date) ? Color.red : tint)
+                                }
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                            }
+                        }
+                    }
+                    .frame(height: 38)
+
+                    Group {
+                        if let fraction = metrics.elapsedFraction {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text("기간 경과 \(Int((fraction * 100).rounded()))%")
+                                    Spacer()
+                                    Text("\(100 - Int((fraction * 100).rounded()))% 남음")
+                                }
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                ProgressView(value: fraction)
+                                    .tint(tint.opacity(0.8))
+                                    .scaleEffect(x: 1, y: 0.72, anchor: .center)
+                                    .accessibilityLabel("기간 경과율")
+                            }
+                        } else {
+                            Capsule()
+                                .fill(Theme.separator)
+                                .frame(height: 4)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .frame(height: 26)
+
+                    Spacer(minLength: 0)
+                    HStack(spacing: 6) {
+                        Image(systemName: "checklist")
+                            .foregroundStyle(tint)
+                        if metrics.totalTasks == 0 {
+                            Text("준비 작업 없음")
+                        } else {
+                            Text("준비한 할 일 \(metrics.completedTasks)/\(metrics.totalTasks)")
+                        }
+                        Spacer()
+                        if item.completion == .completed {
+                            Label("완료", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(Theme.accent)
+                        }
+                        Label("상세 보기", systemImage: "arrow.up.right")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(tint)
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(height: 15)
                 }
-                Spacer()
-                if item.completion == .completed {
-                    Label("완료", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(Theme.accent)
-                }
-                Button(action: onSelect) {
-                    Label("상세 보기", systemImage: "arrow.up.right")
-                        .labelStyle(.titleAndIcon)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(tint)
-                }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 13)
             }
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .frame(height: cardHeight, alignment: .topLeading)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous).stroke(
+                    isHovered ? Theme.accent.opacity(0.32) : Theme.separator, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
         }
-        .padding(15)
-        .frame(maxWidth: .infinity, minHeight: 210, alignment: .topLeading)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 11))
-        .overlay(RoundedRectangle(cornerRadius: 11).stroke(Theme.separator, lineWidth: 1))
-        .overlay(alignment: .top) {
-            tint
-                .frame(height: 3)
-                .padding(.horizontal, 1)
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-        }
+        .buttonStyle(.plain)
         .contextMenu {
             Button("편집", systemImage: "pencil", action: onEdit)
             if item.kind != .event {
@@ -145,6 +153,9 @@ struct ProgressCard: View {
         .confirmationDialog("Progress를 삭제할까요?", isPresented: $confirmsDelete, titleVisibility: .visible) {
             Button("삭제", role: .destructive, action: onDelete)
             Button("취소", role: .cancel) {}
+        }
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
         }
     }
 

@@ -1,264 +1,256 @@
 import SwiftUI
 
 struct RootView: View {
-    let model: AppModel
-    @State private var settingsPresented = false
+    let appModel: AppModel
+    private let appDelegate: TodoListAppDelegate?
+    @State private var model: WindowModel
+    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @SceneStorage("todolist.route") private var savedRoute = AppRoute.today.rawValue
+    @SceneStorage("todolist.selected-date") private var savedDate = ""
+    @SceneStorage("todolist.calendar-mode") private var savedCalendarMode = CalendarViewMode.month.rawValue
+    @SceneStorage("todolist.selected-item") private var savedSelectedItemID = ""
+    @SceneStorage("todolist.category-filter") private var savedCategory = ""
+    @SceneStorage("todolist.inspector-presented") private var savedInspectorPresented = false
+    @State private var hoveredSidebarRow: String?
+    @SceneStorage("todolist.sidebar-visible") private var sidebarVisible = true
+
+    init(model: AppModel, appDelegate: TodoListAppDelegate? = nil) {
+        self.appModel = model
+        self.appDelegate = appDelegate
+        let arguments = ProcessInfo.processInfo.arguments
+        let previewDate = arguments.contains("--stress-preview") ? StressPreviewFixture.date : arguments.contains("--design-preview") ? DesignPreviewFixture.date : nil
+        _model = State(initialValue: WindowModel(app: model, selectedDate: previewDate))
+    }
 
     var body: some View {
-        GeometryReader { windowGeometry in
-            NavigationSplitView {
+        NavigationStack {
+            HStack(spacing: 0) {
                 sidebar
-                    .navigationSplitViewColumnWidth(
-                        min: 160,
-                        ideal: min(216, max(160, windowGeometry.size.width * 0.15)),
-                        max: 240
-                    )
-            } detail: {
-                ZStack(alignment: .trailing) {
+                    .frame(width: 216)
+                    .frame(width: sidebarVisible ? 216 : 0, alignment: .leading)
+                    .clipped()
+                    .accessibilityHidden(!sidebarVisible)
                 routeContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Theme.canvas)
-                if model.inspectorPresented, let item = model.selectedItem {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .trailing) {
-                        Color.black.opacity(0.13)
-                            .contentShape(Rectangle())
-                            .onTapGesture { model.dismissInspector() }
-                        ItemInspectorView(
-                            item: item,
-                            repository: model.repository,
-                            timeFormat: model.preferences.timeFormat,
-                            onEdit: { model.requestEdit(item.id) },
-                            onComplete: { Task { await model.setSelectedItemCompletion() } },
-                            onDelete: { Task { await model.deleteSelectedItem() } },
-                            onShowInCalendar: { model.showCalendar(for: item) },
-                            onRefresh: { Task { await model.refresh() } },
-                            onClose: { model.dismissInspector() }
-                        )
-                        .frame(width: min(420, max(280, geometry.size.width - 240)))
-                        .frame(maxHeight: .infinity)
-                        .background(.white)
-                        .shadow(color: .black.opacity(0.12), radius: 18, x: -4)
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.28, extraBounce: 0)) {
+                            sidebarVisible.toggle()
                         }
+                    } label: {
+                        Image(systemName: "sidebar.left")
                     }
-                    .transition(.opacity)
-                    .zIndex(2)
-                }
-                if settingsPresented {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .trailing) {
-                            Color.black.opacity(0.13)
-                                .contentShape(Rectangle())
-                                .onTapGesture { settingsPresented = false }
-                            SettingsView(model: model, onClose: { settingsPresented = false })
-                                .frame(width: min(420, max(300, geometry.size.width - 240)))
-                                .frame(maxHeight: .infinity)
-                                .background(.white)
-                                .shadow(color: .black.opacity(0.12), radius: 18, x: -4)
-                        }
-                    }
-                    .transition(.opacity)
-                    .zIndex(3)
+                    .accessibilityLabel(sidebarVisible ? "사이드바 가리기" : "사이드바 보기")
+                    .help("사이드바 보기/가리기")
                 }
             }
-            .background(Theme.canvas)
-            .onExitCommand {
-                if settingsPresented { settingsPresented = false }
-                else { model.dismissInspector() }
+        }
+        .navigationTitle("")
+        .focusedSceneValue(\.todoListWindowModel, model)
+        .onAppear {
+            appDelegate?.reopenMainWindow = { openWindow(id: "main") }
+        }
+        .inspector(isPresented: inspectorBinding) {
+            if let item = model.selectedItem {
+                ItemInspectorView(
+                    item: item,
+                    repository: model.repository,
+                    timeFormat: model.preferences.timeFormat,
+                    onEdit: { model.requestEdit(item.id) },
+                    onComplete: { Task { await model.setSelectedItemCompletion() } },
+                    onDelete: { Task { await model.deleteSelectedItem() } },
+                    onShowInCalendar: { model.showCalendar(for: item) },
+                    onRefresh: { Task { await model.refresh() } },
+                    onClose: { model.dismissInspector() }
+                )
+                .inspectorColumnWidth(min: 360, ideal: 440, max: 520)
+            } else {
+                EmptyView()
             }
+        }
+        .tint(Theme.accent)
+        .preferredColorScheme(preferredColorScheme)
+        .onOpenURL { url in Task { await appModel.authService.handleCallback(url) } }
+        .onExitCommand { model.dismissInspector() }
+        .task {
+            await appModel.loadIfNeeded()
+            if savedDate.isEmpty {
+                model.selectedDate = TodayView.currentDate(timeZone: model.preferences.timeZone)
             }
-            .navigationSplitViewStyle(.balanced)
-            .navigationTitle(model.route == .today ? "내 공간" : model.route.title)
-            .tint(Theme.accent)
-            .preferredColorScheme(preferredColorScheme)
-            .toolbarBackground(Theme.titlebar, for: .windowToolbar)
-            .toolbarColorScheme(.light, for: .windowToolbar)
-            .onOpenURL { url in Task { await model.authService.handleCallback(url) } }
-            .sheet(isPresented: editorPresentationBinding) {
+            restoreSceneState()
+        }
+        .sheet(isPresented: editorPresentationBinding) {
             let initial = model.items.first { $0.id == model.editingItemID }
             ItemEditorView(
                 initialItem: initial,
                 defaultKind: model.editorKind,
-                context: model.editorContext ?? ItemEditorContext(dateOnly: model.selectedDate, startInstant: nil, timeZone: model.preferences.timeZone),
+                context: model.editorContext ?? ItemEditorContext(dateOnly: model.selectedDate, startInstant: nil, timeZone: model.preferences.timeZone, weekStartsOn: model.calendarWeekStartsOn),
                 repository: model.repository,
+                categoryItems: model.items,
+                categoryPreferences: model.preferences.taskCategories,
                 onSaved: { _ in
                     Task { await model.refresh(); model.clearEditorRequest() }
                 },
-                onCancel: { model.clearEditorRequest() }
+                onCancel: { model.clearEditorRequest() },
+                timeFormat: model.preferences.timeFormat
             )
-            }
-            .sheet(isPresented: searchPresentationBinding) {
-            GlobalSearchView(items: model.items.filter { $0.deletedAt == nil }, onSelect: model.openSearchResult, onClose: { model.searchPresented = false })
-            }
-            .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("todo")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color(red: 0.43, green: 0.47, blue: 0.44))
-                    .offset(x: -108)
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    model.route = .today
-                    model.selectedDate = TodayView.currentDate(timeZone: model.preferences.timeZone)
-                } label: {
-                    Image(systemName: "house")
+        }
+        .sheet(isPresented: searchPresentationBinding) {
+            GlobalSearchView(items: model.items.filter { $0.deletedAt == nil }, onSelect: model.openSearchResult, onClose: { model.searchPresented = false }, timeFormat: model.preferences.timeFormat)
+                .background { SheetOutsideClickDismiss { model.searchPresented = false }.allowsHitTesting(false) }
+        }
+        .toolbar {
+            ToolbarItem(placement: .automatic) { Spacer() }
+            if model.route != .today {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        model.route = .today
+                        model.selectedCategoryFilter = nil
+                        model.selectedDate = TodayView.currentDate(timeZone: model.preferences.timeZone)
+                    } label: {
+                        Image(systemName: "house")
+                    }
+                    .accessibilityLabel("오늘로 이동")
+                    .help("오늘로 이동")
+                    if model.route == .calendar {
+                        Button {
+                            model.requestNewTask()
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .accessibilityLabel("새 할 일")
+                        .help("새 할 일 (⌘N)")
+                    }
                 }
-                .help("오늘")
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button { model.requestNewTask() } label: {
-                    Image(systemName: "plus")
-                }
-                .keyboardShortcut("n", modifiers: .command)
-                .help("새 할 일 (⌘N)")
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button { model.searchPresented = true } label: {
-                    Image(systemName: "magnifyingglass")
-                }
-                .keyboardShortcut("k", modifiers: .command)
-                .help("검색 (⌘K)")
-            }
             }
         }
+        .toolbar(removing: .sidebarToggle)
+        .onChange(of: model.route) { _, value in savedRoute = value.rawValue }
+        .onChange(of: model.selectedDate) { _, value in savedDate = value }
+        .onChange(of: model.calendarViewMode) { _, value in savedCalendarMode = value.rawValue }
+        .onChange(of: model.selectedItemID) { _, value in savedSelectedItemID = value ?? "" }
+        .onChange(of: model.selectedCategoryFilter) { _, value in savedCategory = value ?? "" }
+        .onChange(of: model.inspectorPresented) { _, value in savedInspectorPresented = value }
     }
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 9) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 7)
-                                .stroke(Color(red: 0.26, green: 0.37, blue: 0.30), lineWidth: 1.2)
-                                .frame(width: 24, height: 24)
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Theme.accent)
-                        }
-                        .rotationEffect(.degrees(-6))
-                        Text("todo")
-                            .font(.system(size: 17, weight: .bold, design: .rounded))
-                            .tracking(-0.7)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 15)
-                    .padding(.top, 5)
-                    .padding(.bottom, 25)
+            HStack(alignment: .center, spacing: 9) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(Theme.accent.opacity(0.9), lineWidth: 1.2)
+                        .frame(width: 24, height: 24)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.accent)
+                        .offset(x: 1)
+                }
+                .rotationEffect(.degrees(-6))
+                .frame(width: 24, height: 24)
+                Text("todo")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .tracking(-0.7)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 25)
+            .padding(.trailing, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 12)
 
-                    sidebarSectionLabel("WORKSPACE")
+            List {
+                Section("WORKSPACE") {
                     ForEach(AppRoute.allCases) { route in
                         sidebarRoute(route)
                     }
-
-                    if !model.categoryNames.isEmpty {
-                        Rectangle().fill(Theme.separator).frame(height: 1)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 17)
-                        sidebarSectionLabel("MY AREAS")
+                }
+                if !orderedCategoryNames.isEmpty {
+                    Section("MY AREAS") {
                         ForEach(orderedCategoryNames, id: \.self) { category in
                             let color = model.preferences.taskCategories.first(where: { $0.name == category }).map { areaColor($0.color) } ?? Theme.accent
-                            sidebarArea(category, color: color, selected: model.selectedCategoryFilter == category) {
-                                model.toggleCategoryFilter(category)
-                            }
+                            sidebarArea(category, color: color)
                         }
                     }
                 }
-                .padding(.horizontal, 11)
-                .padding(.top, 22)
-                .padding(.bottom, 18)
             }
+            .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
+            .padding(.horizontal, 6)
 
             Divider()
             Button {
                 model.dismissInspector()
-                settingsPresented = true
+                openSettings()
             } label: {
-                HStack(spacing: 9) {
-                    Text("S")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color(red: 0.37, green: 0.45, blue: 0.39))
-                        .frame(width: 27, height: 27)
-                        .background(Theme.sageSelection, in: Circle())
-                    Text("설정 · 내 공간")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.secondary)
-                    Spacer(minLength: 0)
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.secondary)
-                }
-                .padding(.horizontal, 15)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
+                Label("설정", systemImage: "gearshape")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 19)
+                    .padding(.vertical, 13)
+                    .background(hoveredSidebarRow == "settings" ? Theme.rowHover : .clear)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { hoveredSidebarRow = $0 ? "settings" : nil }
+            .accessibilityLabel("설정 열기")
         }
         .background(Theme.sidebar)
-        .overlay {
-            if settingsPresented || model.inspectorPresented {
-                Color.black.opacity(0.13)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        settingsPresented = false
-                        model.dismissInspector()
-                    }
-            }
-        }
-    }
-
-    private func sidebarSectionLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 9, weight: .semibold))
-            .tracking(1.1)
-            .foregroundStyle(Color(red: 0.62, green: 0.66, blue: 0.62))
-            .padding(.horizontal, 15)
-            .padding(.bottom, 8)
-            .padding(.top, 1)
+        .background { SidebarToolbarLayout().frame(width: 0, height: 0) }
     }
 
     private func sidebarRoute(_ route: AppRoute) -> some View {
-        Button {
+        let isSelected = model.route == route && model.selectedCategoryFilter == nil
+        return Button {
             model.route = route
             model.selectedCategoryFilter = nil
         } label: {
-            HStack(spacing: 11) {
-                Image(systemName: route.symbol)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(model.route == route ? Theme.accent : Color.secondary)
-                    .frame(width: 19)
-                Text(route.title)
-                    .font(.system(size: 12, weight: model.route == route ? .semibold : .regular))
+            HStack(spacing: 10) {
+                Label(route.title, systemImage: route.symbol)
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
                 Spacer(minLength: 4)
-                if let count = sidebarCount(for: route) {
+                if route != model.route, let count = sidebarCount(for: route), count > 0 {
                     Text("\(count)")
-                        .font(.system(size: 9, design: .rounded).monospacedDigit())
-                        .foregroundStyle(Color.secondary.opacity(0.7))
+                        .font(.system(size: 10, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Theme.tertiaryText)
                 }
             }
-            .padding(.horizontal, 11)
-            .frame(height: 36)
-            .background(model.route == route ? Theme.sageSelection : .clear, in: RoundedRectangle(cornerRadius: 7))
+            .foregroundStyle(isSelected ? Theme.accent : Theme.primaryText)
+            .padding(.horizontal, 10)
+            .frame(height: 34)
             .contentShape(Rectangle())
+            .background(isSelected ? Theme.sageSelection : hoveredSidebarRow == route.rawValue ? Theme.rowHover : .clear, in: RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
+        .onHover { hoveredSidebarRow = $0 ? route.rawValue : nil }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .accessibilityAddTraits(model.route == route && model.selectedCategoryFilter == nil ? .isSelected : [])
     }
 
-    private func sidebarArea(_ title: String, color: Color, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    private func sidebarArea(_ category: String, color: Color) -> some View {
+        let selected = model.selectedCategoryFilter == category
+        return Button {
+            model.toggleCategoryFilter(category)
+        } label: {
             HStack(spacing: 10) {
-                Circle().fill(color.opacity(0.78)).frame(width: 7, height: 7)
-                Text(title).font(.system(size: 11, weight: selected ? .medium : .regular))
-                Spacer(minLength: 0)
+                Circle().fill(color.opacity(0.82)).frame(width: 8, height: 8)
+                Text(category).font(.system(size: 11, weight: selected ? .medium : .regular))
+                Spacer(minLength: 4)
             }
-            .padding(.horizontal, 16)
-            .frame(height: 30)
-            .background(selected ? Theme.sageSelection : .clear, in: RoundedRectangle(cornerRadius: 7))
+            .foregroundStyle(Theme.primaryText)
+            .padding(.horizontal, 11)
+            .frame(height: 31)
             .contentShape(Rectangle())
+            .background(selected ? Theme.sageSelection : hoveredSidebarRow == "category:\(category)" ? Theme.rowHover : .clear, in: RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
+        .onHover { hoveredSidebarRow = $0 ? "category:\(category)" : nil }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func sidebarCount(for route: AppRoute) -> Int? {
@@ -276,40 +268,28 @@ struct RootView: View {
     private var orderedCategoryNames: [String] {
         let available = Set(model.categoryNames)
         let configured = model.preferences.taskCategories.map(\.name).filter(available.contains)
-        let additional = model.categoryNames.filter { !configured.contains($0) }
-        return configured + additional
+        return configured + model.categoryNames.filter { !configured.contains($0) }
     }
 
     private func areaColor(_ name: String) -> Color {
-        switch name {
-        case "amber": Color(red: 0.82, green: 0.68, blue: 0.48)
-        case "blue", "arctic", "apple-blue": Theme.blue
-        case "violet": Color(red: 0.63, green: 0.60, blue: 0.74)
-        case "coral": Color(red: 0.79, green: 0.56, blue: 0.52)
-        case "rose": Color(red: 0.75, green: 0.57, blue: 0.64)
-        default: Theme.accent
-        }
+        Theme.categoryColor(name)
     }
 
     @ViewBuilder
     private var routeContent: some View {
-        Group {
-            switch model.route {
-            case .today:
-                TodayView(model: model, repository: model.repository)
-            case .progress:
-                ProgressGalleryView(model: model, repository: model.repository)
-            case .calendar:
-                CalendarView(model: model, repository: model.repository)
-            }
+        switch model.route {
+        case .today: TodayView(model: model, repository: model.repository)
+        case .progress: ProgressGalleryView(model: model, repository: model.repository)
+        case .calendar: CalendarView(model: model, repository: model.repository)
         }
     }
 
+    private var inspectorBinding: Binding<Bool> {
+        Binding(get: { model.inspectorPresented }, set: { model.inspectorPresented = $0 })
+    }
+
     private var editorPresentationBinding: Binding<Bool> {
-        Binding(
-            get: { model.editorPresented },
-            set: { if !$0 { model.clearEditorRequest() } }
-        )
+        Binding(get: { model.editorPresented }, set: { if !$0 { model.clearEditorRequest() } })
     }
 
     private var searchPresentationBinding: Binding<Bool> {
@@ -322,5 +302,16 @@ struct RootView: View {
         case "dark": .dark
         default: nil
         }
+    }
+
+    private func restoreSceneState() {
+        model.restore(
+            route: savedRoute,
+            date: savedDate,
+            calendarMode: savedCalendarMode,
+            selectedItemID: savedSelectedItemID.isEmpty ? nil : savedSelectedItemID,
+            category: savedCategory.isEmpty ? nil : savedCategory,
+            inspectorPresented: savedInspectorPresented
+        )
     }
 }
